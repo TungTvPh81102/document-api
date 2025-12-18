@@ -1,18 +1,7 @@
 <?php
 
-use App\Models\User;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
-
 use Laravel\Telescope\Http\Middleware\Authorize;
-
-use function Illuminate\Log\log;
-
-Route::get('/', function () {
- Log::info('Home page visited by guest user.', ['ip' => request()->ip()]);
-
-    return view('welcome');
-});
 
 Route::domain(config('telescope.domain', null))
     ->prefix(config('telescope.path'))

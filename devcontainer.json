@@ -1,0 +1,23 @@
+{
+  "name": "Laravel Codespace",
+  "image": "mcr.microsoft.com/devcontainers/php:8.2",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "18"
+    }
+  },
+  "hostRequirements": {
+    "cpus": 2,
+    "memory": "2gb"
+  },
+  "postCreateCommand": "composer install && cp -n .env.example .env && php artisan key:generate",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "bmewburn.vscode-intelephense-client",
+               "mehedidracula.php-namespace-resolver",
+        "editorconfig.editorconfig"
+      ]
+    }
+  }
+}
