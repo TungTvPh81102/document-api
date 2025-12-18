@@ -18,7 +18,10 @@ class UserController extends Controller
 {
     use ApiResponseTrait;
 
-    public function __construct(private UserService $userService) {}
+    public function __construct(
+        private UserService $userService,
+        private LoggerService $logger
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -37,7 +40,7 @@ class UserController extends Controller
                 'Danh sách người dùng trong hệ thống'
             );
 
-            $duration = microtime(true) - $start; 
+            $duration = microtime(true) - $start;
             LoggerService::logApiRequest($request, $response->getStatusCode(), $duration);
             LoggerService::logApiSuccess($request, 'Fetched user list successfully');
 
@@ -52,217 +55,259 @@ class UserController extends Controller
     }
 
     /**
-     * Create new user (Admin only)
+     * Example 1: Basic paginated response
      */
-    public function store(StoreUserRequest $request): JsonResponse
+    public function index(Request $request)
     {
-        $this->authorize('create', User::class);
-
         try {
-            $user = $this->userService->createUser($request->validated());
+            $page = $request->get('page', 1);
+            $perPage = $request->get('per_page', 15);
 
-            return $this->successResponse(
-                new UserResource($user),
-                'User created successfully',
-                201
-            );
-        } catch (\Exception $e) {
-            return $this->errorResponse(
-                $e->getMessage(),
-                500
+            $users = $this->userService->getAllUsers($page, $perPage);
+
+            return $this->paginatedResponse($users, 'Users retrieved successfully');
+        } catch (\Throwable $e) {
+            return $this->serverErrorResponse(
+                'Failed to retrieve users',
+                $e
             );
         }
     }
 
     /**
-     * Get user by ID
+     * Example 2: Created response with location and correlation ID
      */
-    public function show(User $user): JsonResponse
+    public function store(Request $request)
     {
-        $this->authorize('view', $user);
+        $corrId = (string) Str::orderedUuid();
 
         try {
-            return $this->successResponse(
-                new UserResource($user),
-                'User retrieved successfully'
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'email' => 'required|email|unique:users',
+                'password' => 'required|min:8',
+            ]);
+
+            $user = $this->userService->createUser($validated);
+
+            // Set correlation ID and add HATEOAS links
+            return $this->setCorrelationId($corrId)
+                ->withLinks([
+                    'self' => route('users.show', $user->id),
+                    'update' => route('users.update', $user->id),
+                    'delete' => route('users.destroy', $user->id),
+                ])
+                ->createdResponse(
+                    $user,
+                    'User created successfully',
+                    route('users.show', $user->id)
+                );
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->validationErrorResponse(
+                $e->errors(),
+                'Validation failed'
             );
-        } catch (\Exception $e) {
-            return $this->errorResponse(
-                $e->getMessage(),
-                500
+        } catch (\Throwable $e) {
+            $this->logger->logServiceError(
+                self::class,
+                __FUNCTION__,
+                $e,
+                ['correlation_id' => $corrId]
             );
+
+            return $this->setCorrelationId($corrId)
+                ->serverErrorResponse('Failed to create user', $e);
         }
     }
 
     /**
-     * Update user
+     * Example 3: Response with debug info (non-production)
      */
-    public function update(UpdateUserRequest $request, User $user): JsonResponse
+    public function show(string $id)
     {
-        try {
-            $updatedUser = $this->userService->updateUser($user, $request->validated());
+        $start = microtime(true);
 
-            return $this->successResponse(
-                new UserResource($updatedUser),
-                'User updated successfully'
-            );
-        } catch (\Exception $e) {
-            return $this->errorResponse(
-                $e->getMessage(),
-                500
-            );
+        try {
+            $user = $this->userService->findUser($id);
+
+            if (!$user) {
+                return $this->notFoundResponse('User not found', 'User');
+            }
+
+            $duration = microtime(true) - $start;
+
+            // Add debug info in non-production
+            return $this->withDebug([
+                'query_time_ms' => round($duration * 1000, 2),
+                'cache_hit' => false,
+            ])
+                ->withLinks([
+                    'self' => route('users.show', $id),
+                    'posts' => route('users.posts', $id),
+                ])
+                ->successResponse($user, 'User retrieved successfully');
+        } catch (\Throwable $e) {
+            return $this->serverErrorResponse('Failed to retrieve user', $e);
         }
     }
 
     /**
-     * Delete user (soft delete)
+     * Example 4: Bulk operation response
      */
-    public function destroy(User $user): JsonResponse
+    public function bulkDelete(Request $request)
     {
-        $this->authorize('delete', $user);
+        $validated = $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'required|exists:users,id',
+        ]);
 
-        try {
-            $this->userService->deleteUser($user);
+        $successful = 0;
+        $failed = 0;
+        $results = [];
 
-            return $this->successResponse(
-                null,
-                'User deleted successfully'
-            );
-        } catch (\Exception $e) {
-            return $this->errorResponse(
-                $e->getMessage(),
-                500
-            );
+        foreach ($validated['ids'] as $id) {
+            try {
+                $this->userService->deleteUser($id);
+                $successful++;
+                $results[] = [
+                    'id' => $id,
+                    'status' => 'success',
+                ];
+            } catch (\Throwable $e) {
+                $failed++;
+                $results[] = [
+                    'id' => $id,
+                    'status' => 'failed',
+                    'error' => $e->getMessage(),
+                ];
+            }
         }
+
+        return $this->bulkOperationResponse(
+            $successful,
+            $failed,
+            $results,
+            'delete'
+        );
     }
 
     /**
-     * Get current authenticated user
+     * Example 5: Conflict response for duplicate
      */
-    public function me(Request $request): JsonResponse
+    public function checkEmail(Request $request)
     {
-        try {
-            $user = $request->user();
+        $email = $request->get('email');
 
-            return $this->successResponse(
-                new UserResource($user),
-                'Current user retrieved successfully'
-            );
-        } catch (\Exception $e) {
-            return $this->errorResponse(
-                $e->getMessage(),
-                500
+        $exists = User::where('email', $email)->exists();
+
+        if ($exists) {
+            return $this->conflictResponse(
+                'Email already registered',
+                ['email' => $email]
             );
         }
+
+        return $this->successResponse(
+            ['available' => true],
+            'Email is available'
+        );
     }
 
     /**
-     * Lock user account (Admin only)
+     * Example 6: Collection response
      */
-    public function lock(User $user): JsonResponse
+    public function search(Request $request)
     {
-        $this->authorize('update', $user);
+        $query = $request->get('q');
 
-        try {
-            $lockedUser = $this->userService->lockUser($user);
+        $users = User::where('name', 'like', "%{$query}%")
+            ->orWhere('email', 'like', "%{$query}%")
+            ->limit(20)
+            ->get();
 
-            return $this->successResponse(
-                new UserResource($lockedUser),
-                'User account locked successfully'
-            );
-        } catch (\Exception $e) {
-            return $this->errorResponse(
-                $e->getMessage(),
-                500
-            );
-        }
+        return $this->collectionResponse($users, 'Search results');
     }
 
     /**
-     * Unlock user account (Admin only)
+     * Example 7: Accepted response for async operation
      */
-    public function unlock(User $user): JsonResponse
+    public function export(Request $request)
     {
-        $this->authorize('update', $user);
+        $jobId = Str::uuid();
 
-        try {
-            $unlockedUser = $this->userService->unlockUser($user);
+        // Dispatch async job
+        ExportUsersJob::dispatch($jobId);
 
-            return $this->successResponse(
-                new UserResource($unlockedUser),
-                'User account unlocked successfully'
+        return $this->withLinks([
+            'status' => route('exports.status', $jobId),
+        ])
+            ->acceptedResponse(
+                ['job_id' => $jobId],
+                'Export job queued successfully'
             );
-        } catch (\Exception $e) {
-            return $this->errorResponse(
-                $e->getMessage(),
-                500
-            );
-        }
     }
 
     /**
-     * Enable user (Admin only)
+     * Example 8: Rate limit response
      */
-    public function enable(User $user): JsonResponse
+    public function rateLimit(Request $request)
     {
-        $this->authorize('update', $user);
+        $key = 'api_limit:' . $request->ip();
+        $limit = 100;
+        $current = Cache::increment($key);
 
-        try {
-            $enabledUser = $this->userService->enableUser($user);
+        if ($current === 1) {
+            Cache::expire($key, 3600); // 1 hour
+        }
 
-            return $this->successResponse(
-                new UserResource($enabledUser),
-                'User enabled successfully'
-            );
-        } catch (\Exception $e) {
-            return $this->errorResponse(
-                $e->getMessage(),
-                500
+        if ($current > $limit) {
+            $retryAfter = Cache::ttl($key);
+            return $this->tooManyRequestsResponse(
+                'Rate limit exceeded',
+                $retryAfter
             );
         }
+
+        // Continue with normal request
+        return $this->successResponse(['message' => 'OK']);
     }
 
     /**
-     * Disable user (Admin only)
+     * Example 9: Partial content response
      */
-    public function disable(User $user): JsonResponse
+    public function rangeRequest(Request $request)
     {
-        $this->authorize('update', $user);
+        $from = $request->get('from', 0);
+        $to = $request->get('to', 99);
 
-        try {
-            $disabledUser = $this->userService->disableUser($user);
+        $total = User::count();
+        $users = User::skip($from)->take($to - $from + 1)->get();
 
-            return $this->successResponse(
-                new UserResource($disabledUser),
-                'User disabled successfully'
-            );
-        } catch (\Exception $e) {
-            return $this->errorResponse(
-                $e->getMessage(),
-                500
-            );
-        }
+        return $this->partialContentResponse(
+            $users,
+            $from,
+            $to,
+            $total,
+            'Partial user list'
+        );
     }
 
     /**
-     * Get user statistics (Admin only)
+     * Example 10: Custom metadata response
      */
-    public function statistics(): JsonResponse
+    public function stats()
     {
-        $this->authorize('viewAny', User::class);
+        $stats = [
+            'total_users' => User::count(),
+            'active_users' => User::where('is_active', true)->count(),
+            'new_today' => User::whereDate('created_at', today())->count(),
+        ];
 
-        try {
-            $stats = $this->userService->getUserStatistics();
-
-            return $this->successResponse(
-                $stats,
-                'User statistics retrieved successfully'
-            );
-        } catch (\Exception $e) {
-            return $this->errorResponse(
-                $e->getMessage(),
-                500
-            );
-        }
+        return $this->withMeta([
+            'generated_at' => now()->toISOString(),
+            'cached' => false,
+            'cache_ttl' => 300,
+        ])
+            ->successResponse($stats, 'User statistics');
     }
 }

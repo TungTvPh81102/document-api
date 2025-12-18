@@ -30,6 +30,7 @@ class UserService
                 'result_count' => $paginator->count(),
                 'total' => $paginator->total(),
                 'duration_ms' => round($duration * 1000, 2),
+                'correlation_id' => $corrId,
             ]);
 
             return $paginator;
@@ -38,8 +39,8 @@ class UserService
             $durationMs = round($duration * 1000, 2);
 
             $this->logger->logServiceError(
-                __CLASS__ . '@' . __FUNCTION__, 
-                'GET',                         
+                __CLASS__ . '@' . __FUNCTION__,
+                'GET',
                 $e,
                 [
                     'page'        => $page,
@@ -92,8 +93,26 @@ class UserService
                 'duration_ms' => round($duration * 1000, 2),
             ]);
 
+            $this->logger->logSqlQuery(
+                "INSERT INTO users",
+                $data,
+                'INSERT',
+                $duration,
+                self::class
+            );
+
             return $user;
         } catch (\Throwable $e) {
+            $this->logger->logSqlQuery(
+                "INSERT INTO users FAILED",
+                $data,
+                'INSERT',
+                $duration,
+                self::class,
+                true,
+                $e->getMessage()
+            );
+
             $duration = microtime(true) - $start;
             \Log::error('createUser failed', [
                 'exception' => $e->getMessage(),
