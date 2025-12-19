@@ -6,12 +6,13 @@ use App\Models\SqlLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Throwable;
 
 class LoggerService
 {
     private const SENSITIVE_FIELDS = ['password', 'token', 'secret', 'api_key', 'credit_card', 'cvv', 'pin'];
-    private const SLOW_QUERY_THRESHOLD = 1000; // ms
+    private const SLOW_QUERY_THRESHOLD = 1000;
 
     /**
      * Log SQL query to database
@@ -29,13 +30,13 @@ class LoggerService
             $request = request();
 
             DB::table('cim_sql_log')->insert([
-                'id' => DB::raw('uuid_generate_v4()'),
+                'id' => Str::orderedUuid(),
                 'sql_text' => $sqlText,
                 'sql_params' => $params ? json_encode($this->sanitizeParams($params)) : null,
                 'operation' => $operation ?? $this->detectOperation($sqlText),
                 'duration_ms' => $duration ? round($duration * 1000, 2) : null,
                 'executed_by' => auth()->user()?->name ?? 'system',
-                'user_id' => auth()->id(),
+                'user_id' => auth()->id() ?? 'system',
                 'module' => $module,
                 'ip_address' => $request?->ip(),
                 'user_agent' => $request?->userAgent(),
@@ -45,7 +46,6 @@ class LoggerService
                 'updated_at' => now(),
             ]);
 
-            // Log slow queries
             if ($duration && ($duration * 1000) > self::SLOW_QUERY_THRESHOLD) {
                 $this->logPerformanceIssue(
                     'sql_query',
@@ -59,10 +59,13 @@ class LoggerService
                 );
             }
         } catch (\Throwable $e) {
-            // Fallback to file log if database logging fails
-            Log::error('Failed to log SQL query to database', [
-                'error' => $e->getMessage(),
-                'sql' => substr($sqlText, 0, 200)
+            Log::channel('database')->error('Original SQL query that failed to log', [
+                'error' => $e,
+                'sql_text' => substr($sqlText, 0, 200),
+                'params' => $params,
+                'operation' => $operation,
+                'duration_ms' => $duration ? round($duration * 1000, 2) : null,
+                'module' => $module,
             ]);
         }
     }
@@ -164,17 +167,6 @@ class LoggerService
         }
 
         Log::channel('database')->info("Database Operation: $operation on $model", $context);
-
-        // Optionally log to SQL log table
-        if ($duration) {
-            $this->logSqlQuery(
-                "Database operation: $operation",
-                ['model' => $model, 'id' => $id],
-                $operation,
-                $duration,
-                $this->getCallerModule()
-            );
-        }
     }
 
     /**
@@ -254,7 +246,6 @@ class LoggerService
 
         Log::channel('service_errors')->error("Service Error: $service::$method", $errorContext);
 
-        // Also log to SQL log table for critical errors
         $this->logSqlQuery(
             "Service error in $service::$method",
             ['error' => $e->getMessage()],
@@ -357,7 +348,7 @@ class LoggerService
 
             foreach ($queries as $query) {
                 $records[] = [
-                    'id' => DB::raw('uuid_generate_v4()'),
+                    'id' => Str::orderedUuid(),
                     'sql_text' => $query['sql'] ?? '',
                     'sql_params' => isset($query['params']) ? json_encode($this->sanitizeParams($query['params'])) : null,
                     'operation' => $query['operation'] ?? $this->detectOperation($query['sql'] ?? ''),

@@ -41,35 +41,15 @@ class UserController extends Controller
             );
 
             $duration = microtime(true) - $start;
-            LoggerService::logApiRequest($request, $response->getStatusCode(), $duration);
-            LoggerService::logApiSuccess($request, 'Fetched user list successfully');
+
+            $this->logger->logApiRequest($request, $response->getStatusCode(), $duration);
 
             return $response;
         } catch (\Exception $e) {
-            LoggerService::logApiError($e, $request);
+            $this->logger->logApiError($e, $request);
 
             return $this->serverErrorResponse(
                 $e->getMessage()
-            );
-        }
-    }
-
-    /**
-     * Example 1: Basic paginated response
-     */
-    public function index(Request $request)
-    {
-        try {
-            $page = $request->get('page', 1);
-            $perPage = $request->get('per_page', 15);
-
-            $users = $this->userService->getAllUsers($page, $perPage);
-
-            return $this->paginatedResponse($users, 'Users retrieved successfully');
-        } catch (\Throwable $e) {
-            return $this->serverErrorResponse(
-                'Failed to retrieve users',
-                $e
             );
         }
     }
@@ -123,31 +103,25 @@ class UserController extends Controller
     /**
      * Example 3: Response with debug info (non-production)
      */
-    public function show(string $id)
+    public function show(string $code)
     {
-        $start = microtime(true);
-
         try {
-            $user = $this->userService->findUser($id);
+            $user = $this->userService->getUserByCode($code);
 
             if (!$user) {
                 return $this->notFoundResponse('User not found', 'User');
             }
 
-            $duration = microtime(true) - $start;
-
-            // Add debug info in non-production
-            return $this->withDebug([
-                'query_time_ms' => round($duration * 1000, 2),
-                'cache_hit' => false,
-            ])
-                ->withLinks([
-                    'self' => route('users.show', $id),
-                    'posts' => route('users.posts', $id),
-                ])
-                ->successResponse($user, 'User retrieved successfully');
+            return $this->successResponse(
+                new UserResource($user),
+                'User retrieved successfully'
+            );
         } catch (\Throwable $e) {
-            return $this->serverErrorResponse('Failed to retrieve user', $e);
+            $this->logger->logApiError($e, $request);
+
+            return $this->serverErrorResponse(
+                $e->getMessage()
+            );
         }
     }
 

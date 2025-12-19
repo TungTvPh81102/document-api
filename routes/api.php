@@ -10,19 +10,10 @@ Route::get('/health', [HealthController::class, 'health']);
 // Current User
 Route::get('/user', [UserController::class, 'me']);
 
-Route::get('/users', [UserController::class, 'index']);
+Route::prefix('users')->group(function () {
+    Route::get('/', [UserController::class, 'index']);
+    Route::get('/{code}', [UserController::class, 'show']);
+});
 
-    // Route::group(function () {
-    //     Route::get('/users', [UserController::class, 'index']);
-    //     Route::post('/users', [UserController::class, 'store']);
-    //     Route::get('/users/statistics', [UserController::class, 'statistics']);
-    //     Route::get('/users/{user}', [UserController::class, 'show']);
-    //     Route::put('/users/{user}', [UserController::class, 'update']);
-    //     Route::delete('/users/{user}', [UserController::class, 'destroy']);
-    //     Route::post('/users/{user}/lock', [UserController::class, 'lock']);
-    //     Route::post('/users/{user}/unlock', [UserController::class, 'unlock']);
-    //     Route::post('/users/{user}/enable', [UserController::class, 'enable']);
-    //     Route::post('/users/{user}/disable', [UserController::class, 'disable']);
-    // });
 
 // });

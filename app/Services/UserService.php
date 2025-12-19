@@ -23,15 +23,7 @@ class UserService
 
             $duration = microtime(true) - $start;
 
-            $this->logger->logDatabaseOperation(__FUNCTION__, User::class, Str::uuid(), $duration);
-            $this->logger->logAction('list', null, [
-                'page' => $page,
-                'per_page' => $perPage,
-                'result_count' => $paginator->count(),
-                'total' => $paginator->total(),
-                'duration_ms' => round($duration * 1000, 2),
-                'correlation_id' => $corrId,
-            ]);
+            $this->logger->logDatabaseOperation(__FUNCTION__, User::class, Str::orderedUuid(), $duration);
 
             return $paginator;
         } catch (\Throwable $e) {
@@ -55,11 +47,13 @@ class UserService
     }
 
     /**
-     * Get user by ID
+     * Get user by Code
      */
-    public function getUserById(int $id): ?User
+    public function getUserByCode(string $code): ?User
     {
-        return User::find($id);
+        return User::query()
+            ->where('code', $code)
+            ->first();
     }
 
     /**
