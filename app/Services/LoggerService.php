@@ -2,17 +2,69 @@
 
 namespace App\Services;
 
-use App\Models\SqlLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Throwable;
+use App\Support\SecurityUtil;
 
 class LoggerService
 {
     private const SENSITIVE_FIELDS = ['password', 'token', 'secret', 'api_key', 'credit_card', 'cvv', 'pin'];
     private const SLOW_QUERY_THRESHOLD = 1000;
+
+    /**
+     * Persist the full HTTP request into cim_sql_log table using existing columns.
+     * - sql_text: "HTTP {METHOD} {PATH}"
+     * - sql_params: JSON with sanitized headers, query, body
+     * - operation: 'HTTP_REQUEST'
+     * - duration_ms, executed_by, user_id, module, ip_address, user_agent, is_error, error_message
+     */
+    public function logFullRequestToSqlLog(
+        ?Request $request = null,
+        ?int $statusCode = null,
+        ?float $duration = null,
+        bool $isError = false,
+        ?string $errorMessage = null
+    ): void {
+        try {
+            $request = $request ?? request();
+
+            $headers = [];
+            foreach ($request->headers->all() as $key => $values) {
+                $headers[$key] = is_array($values) ? implode(',', $values) : $values;
+            }
+
+            $payload = [
+                'status_code' => $statusCode,
+                'headers' => $this->sanitizeParams($headers),
+                'query' => $this->sanitizeParams($request->query() ?? []),
+                'body' => $this->sanitizeParams($request->all() ?? []),
+            ];
+
+            DB::table('cim_sql_log')->insert([
+                'id' => DB::raw('uuid_generate_v4()'),
+                'sql_text' => sprintf('HTTP %s %s', $request->getMethod(), $request->getPathInfo()),
+                'sql_params' => json_encode($payload),
+                'operation' => 'HTTP_REQUEST',
+                'duration_ms' => $duration ? round($duration * 1000, 2) : null,
+                'executed_by' => auth()->user()?->name ?? 'system',
+                'user_id' => auth()->id(),
+                'module' => $request?->route()?->getActionName(),
+                'ip_address' => $request?->ip(),
+                'user_agent' => $request?->userAgent(),
+                'is_error' => $isError,
+                'error_message' => $errorMessage,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to log full HTTP request to cim_sql_log', [
+                'error' => $e->getMessage(),
+                'path' => $request?->path(),
+            ]);
+        }
+    }
 
     /**
      * Log SQL query to database
@@ -30,13 +82,13 @@ class LoggerService
             $request = request();
 
             DB::table('cim_sql_log')->insert([
-                'id' => Str::orderedUuid(),
+                'id' => DB::raw('uuid_generate_v4()'),
                 'sql_text' => $sqlText,
                 'sql_params' => $params ? json_encode($this->sanitizeParams($params)) : null,
                 'operation' => $operation ?? $this->detectOperation($sqlText),
                 'duration_ms' => $duration ? round($duration * 1000, 2) : null,
                 'executed_by' => auth()->user()?->name ?? 'system',
-                'user_id' => auth()->id() ?? 'system',
+                'user_id' => auth()->id(),
                 'module' => $module,
                 'ip_address' => $request?->ip(),
                 'user_agent' => $request?->userAgent(),
@@ -46,6 +98,7 @@ class LoggerService
                 'updated_at' => now(),
             ]);
 
+            // Log slow queries
             if ($duration && ($duration * 1000) > self::SLOW_QUERY_THRESHOLD) {
                 $this->logPerformanceIssue(
                     'sql_query',
@@ -59,13 +112,10 @@ class LoggerService
                 );
             }
         } catch (\Throwable $e) {
-            Log::channel('database')->error('Original SQL query that failed to log', [
-                'error' => $e,
-                'sql_text' => substr($sqlText, 0, 200),
-                'params' => $params,
-                'operation' => $operation,
-                'duration_ms' => $duration ? round($duration * 1000, 2) : null,
-                'module' => $module,
+            // Fallback to file log if database logging fails
+            Log::error('Failed to log SQL query to database', [
+                'error' => $e->getMessage(),
+                'sql' => substr($sqlText, 0, 200)
             ]);
         }
     }
@@ -167,6 +217,17 @@ class LoggerService
         }
 
         Log::channel('database')->info("Database Operation: $operation on $model", $context);
+
+        // Optionally log to SQL log table
+        if ($duration) {
+            $this->logSqlQuery(
+                "Database operation: $operation",
+                ['model' => $model, 'id' => $id],
+                $operation,
+                $duration,
+                $this->getCallerModule()
+            );
+        }
     }
 
     /**
@@ -246,6 +307,7 @@ class LoggerService
 
         Log::channel('service_errors')->error("Service Error: $service::$method", $errorContext);
 
+        // Also log to SQL log table for critical errors
         $this->logSqlQuery(
             "Service error in $service::$method",
             ['error' => $e->getMessage()],
@@ -286,13 +348,7 @@ class LoggerService
      */
     private function sanitizeInput(array $input): array
     {
-        foreach (self::SENSITIVE_FIELDS as $field) {
-            if (isset($input[$field])) {
-                $input[$field] = '***REDACTED***';
-            }
-        }
-
-        return $input;
+        return SecurityUtil::redact($input);
     }
 
     /**
@@ -300,7 +356,7 @@ class LoggerService
      */
     private function sanitizeParams(array $params): array
     {
-        return $this->sanitizeInput($params);
+        return SecurityUtil::redact($params);
     }
 
     /**
@@ -348,7 +404,7 @@ class LoggerService
 
             foreach ($queries as $query) {
                 $records[] = [
-                    'id' => Str::orderedUuid(),
+                    'id' => DB::raw('uuid_generate_v4()'),
                     'sql_text' => $query['sql'] ?? '',
                     'sql_params' => isset($query['params']) ? json_encode($this->sanitizeParams($query['params'])) : null,
                     'operation' => $query['operation'] ?? $this->detectOperation($query['sql'] ?? ''),

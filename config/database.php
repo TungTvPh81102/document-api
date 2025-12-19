@@ -193,6 +193,13 @@ return [
             'backoff_cap' => env('REDIS_BACKOFF_CAP', 1000),
         ],
 
+        'cache_pgsql' => [
+            'driver' => 'pgsql',
+            'host' => '127.0.0.1',
+            'database' => 'cache_db',
+            'username' => 'cache_user',
+            'password' => 'secret',
+        ]
     ],
 
 ];

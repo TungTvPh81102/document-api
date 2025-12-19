@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Services\LoggerService;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
@@ -46,7 +45,7 @@ abstract class BaseFormRequest extends FormRequest
     {
         $errors = $validator->errors();
 
-        LoggerService::logApiError(
+        app(\App\Services\LoggerService::class)->logApiError(
             new \Exception('Dữ liệu không hợp lệ'),
             $this
         );
