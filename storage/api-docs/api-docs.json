@@ -57,6 +57,7 @@
         "/api/users": {
             "get": {
                 "tags": [
+                    "System",
                     "Users"
                 ],
                 "summary": "List users",
@@ -90,12 +91,30 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 }
             },
             "post": {
                 "tags": [
+                    "System",
                     "Users"
                 ],
                 "summary": "Create user",
@@ -116,7 +135,8 @@
                                         "type": "string"
                                     },
                                     "email": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "format": "email"
                                     },
                                     "password": {
                                         "type": "string",
@@ -130,7 +150,34 @@
                 },
                 "responses": {
                     "201": {
-                        "description": "Created"
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -138,6 +185,7 @@
         "/api/users/bulk-delete": {
             "post": {
                 "tags": [
+                    "System",
                     "Users"
                 ],
                 "summary": "Bulk delete users",
@@ -166,7 +214,34 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BulkOperationResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -174,6 +249,7 @@
         "/api/users/search": {
             "get": {
                 "tags": [
+                    "System",
                     "Users"
                 ],
                 "summary": "Search users",
@@ -191,7 +267,24 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserCollectionResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -199,6 +292,7 @@
         "/api/users/stats": {
             "get": {
                 "tags": [
+                    "System",
                     "Users"
                 ],
                 "summary": "User statistics",
@@ -206,7 +300,24 @@
                 "operationId": "ca767f9cd8fd4a7ac2fa875e16891963",
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserStatsResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -214,6 +325,7 @@
         "/api/user": {
             "get": {
                 "tags": [
+                    "System",
                     "Users"
                 ],
                 "summary": "Current authenticated user",
@@ -221,7 +333,24 @@
                 "operationId": "ca339c92de7dc48ad2790ac3e83529c7",
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CurrentUserResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -229,6 +358,7 @@
         "/api/users/{code}": {
             "get": {
                 "tags": [
+                    "System",
                     "Users"
                 ],
                 "summary": "Get user by code",
@@ -246,10 +376,34 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserResponse"
+                                }
+                            }
+                        }
                     },
                     "404": {
-                        "description": "Not Found"
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -257,6 +411,7 @@
         "/api/users/{id}": {
             "put": {
                 "tags": [
+                    "System",
                     "Users"
                 ],
                 "summary": "Update user",
@@ -282,10 +437,12 @@
                                         "type": "string"
                                     },
                                     "email": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "format": "email"
                                     },
                                     "password": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "format": "password"
                                     }
                                 },
                                 "type": "object"
@@ -295,12 +452,50 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 }
             },
             "delete": {
                 "tags": [
+                    "System",
                     "Users"
                 ],
                 "summary": "Delete user",
@@ -318,7 +513,34 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeleteResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -326,6 +548,7 @@
         "/api/users/{id}/restore": {
             "post": {
                 "tags": [
+                    "System",
                     "Users"
                 ],
                 "summary": "Restore user",
@@ -343,7 +566,34 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -351,6 +601,7 @@
         "/api/users/{id}/force": {
             "delete": {
                 "tags": [
+                    "System",
                     "Users"
                 ],
                 "summary": "Force delete user",
@@ -368,7 +619,34 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeleteResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -376,6 +654,7 @@
         "/api/users/{id}/enable": {
             "post": {
                 "tags": [
+                    "System",
                     "Users"
                 ],
                 "summary": "Enable user",
@@ -393,7 +672,34 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -401,6 +707,7 @@
         "/api/users/{id}/disable": {
             "post": {
                 "tags": [
+                    "System",
                     "Users"
                 ],
                 "summary": "Disable user",
@@ -418,7 +725,34 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -426,6 +760,7 @@
         "/api/users/{id}/lock": {
             "post": {
                 "tags": [
+                    "System",
                     "Users"
                 ],
                 "summary": "Lock user",
@@ -451,7 +786,34 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -459,6 +821,7 @@
         "/api/users/{id}/unlock": {
             "post": {
                 "tags": [
+                    "System",
                     "Users"
                 ],
                 "summary": "Unlock user",
@@ -476,13 +839,362 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
     },
     "components": {
+        "schemas": {
+            "ApiResponse": {
+                "required": [
+                    "success",
+                    "message",
+                    "code",
+                    "timestamp"
+                ],
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "Operation successful"
+                    },
+                    "code": {
+                        "type": "integer",
+                        "example": 200
+                    },
+                    "data": {},
+                    "errors": {
+                        "type": "object",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "correlation_id": {
+                        "type": "string",
+                        "example": "01JDN3X6H1V5C0Y8K9P2R4M7TQ",
+                        "nullable": true
+                    },
+                    "links": {
+                        "properties": {
+                            "self": {
+                                "type": "string",
+                                "example": "https://api.example.com/api/users/123"
+                            },
+                            "update": {
+                                "type": "string",
+                                "example": "https://api.example.com/api/users/123"
+                            },
+                            "delete": {
+                                "type": "string",
+                                "example": "https://api.example.com/api/users/123"
+                            }
+                        },
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "meta": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "debug": {
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "timestamp": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "request_id": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "User": {
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "example": 123
+                    },
+                    "code": {
+                        "type": "string",
+                        "example": "USR-2024-000123"
+                    },
+                    "name": {
+                        "type": "string",
+                        "example": "Nguyen Van A"
+                    },
+                    "email": {
+                        "type": "string",
+                        "example": "a.nguyen@example.com"
+                    },
+                    "is_active": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "type": "object"
+            },
+            "UserResponse": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                        "properties": {
+                            "data": {
+                                "$ref": "#/components/schemas/User"
+                            }
+                        },
+                        "type": "object"
+                    }
+                ]
+            },
+            "UserListResponse": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                        "properties": {
+                            "data": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/User"
+                                }
+                            },
+                            "meta": {
+                                "properties": {
+                                    "current_page": {
+                                        "type": "integer",
+                                        "example": 1
+                                    },
+                                    "per_page": {
+                                        "type": "integer",
+                                        "example": 15
+                                    },
+                                    "total": {
+                                        "type": "integer",
+                                        "example": 150
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        },
+                        "type": "object"
+                    }
+                ]
+            },
+            "ErrorResponse": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                        "properties": {
+                            "success": {
+                                "type": "boolean",
+                                "example": false
+                            },
+                            "message": {
+                                "type": "string",
+                                "example": "Validation failed"
+                            },
+                            "code": {
+                                "type": "integer",
+                                "example": 422
+                            },
+                            "errors": {
+                                "properties": {
+                                    "email": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "example": "The email has already been taken."
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        },
+                        "type": "object"
+                    }
+                ]
+            },
+            "UserCollectionResponse": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                        "properties": {
+                            "data": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/User"
+                                }
+                            }
+                        },
+                        "type": "object"
+                    }
+                ]
+            },
+            "BulkOperationResponse": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                        "properties": {
+                            "operation": {
+                                "type": "string",
+                                "example": "delete"
+                            },
+                            "successful": {
+                                "type": "integer",
+                                "example": 3
+                            },
+                            "failed": {
+                                "type": "integer",
+                                "example": 1
+                            },
+                            "data": {
+                                "type": "array",
+                                "items": {
+                                    "properties": {
+                                        "id": {
+                                            "type": "integer",
+                                            "example": 10
+                                        },
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "error": {
+                                            "type": "string",
+                                            "example": null,
+                                            "nullable": true
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "type": "object"
+                    }
+                ]
+            },
+            "DeleteResponse": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                        "properties": {
+                            "data": {
+                                "properties": {
+                                    "deleted": {
+                                        "type": "boolean",
+                                        "example": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        },
+                        "type": "object"
+                    }
+                ]
+            },
+            "UserStatsResponse": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                        "properties": {
+                            "data": {
+                                "properties": {
+                                    "total_users": {
+                                        "type": "integer",
+                                        "example": 120
+                                    },
+                                    "active_users": {
+                                        "type": "integer",
+                                        "example": 110
+                                    },
+                                    "new_today": {
+                                        "type": "integer",
+                                        "example": 5
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        },
+                        "type": "object"
+                    }
+                ]
+            },
+            "CurrentUserResponse": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                        "properties": {
+                            "data": {
+                                "nullable": true,
+                                "oneOf": [
+                                    {
+                                        "$ref": "#/components/schemas/User"
+                                    }
+                                ]
+                            }
+                        },
+                        "type": "object"
+                    }
+                ]
+            }
+        },
         "securitySchemes": {
             "bearerAuth": {
                 "type": "http",
@@ -502,6 +1214,10 @@
         {
             "name": "Health",
             "description": "Health"
+        },
+        {
+            "name": "System",
+            "description": "System"
         }
     ]
 }

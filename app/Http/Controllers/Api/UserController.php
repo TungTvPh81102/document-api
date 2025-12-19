@@ -11,6 +11,7 @@ use App\Traits\ApiResponseTrait;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use OpenApi\Annotations as OA;
 
 class UserController extends Controller
 {
@@ -32,12 +33,21 @@ class UserController extends Controller
      *
      * @OA\Get(
      *   path="/api/users",
-     *   tags={"Users"},
+     *   tags={"System","Users"},
      *   summary="List users",
      *   @OA\Parameter(name="page", in="query", required=false, @OA\Schema(type="integer")),
      *   @OA\Parameter(name="per_page", in="query", required=false, @OA\Schema(type="integer")),
      *   @OA\Parameter(name="search", in="query", required=false, @OA\Schema(type="string")),
-     *   @OA\Response(response=200, description="OK"),
+     *   @OA\Response(
+     *     response=200,
+     *     description="OK",
+     *     @OA\JsonContent(ref="#/components/schemas/UserListResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=500,
+     *     description="Server error",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   )
      * )
      */
     public function index(Request $request): JsonResponse
@@ -74,18 +84,32 @@ class UserController extends Controller
      *
      * @OA\Post(
      *   path="/api/users",
-     *   tags={"Users"},
+     *   tags={"System","Users"},
      *   summary="Create user",
      *   @OA\RequestBody(
      *     required=true,
      *     @OA\JsonContent(
      *       required={"name","email","password"},
      *       @OA\Property(property="name", type="string"),
-     *       @OA\Property(property="email", type="string"),
+     *       @OA\Property(property="email", type="string", format="email"),
      *       @OA\Property(property="password", type="string", format="password")
      *     )
      *   ),
-     *   @OA\Response(response=201, description="Created")
+     *   @OA\Response(
+     *     response=201,
+     *     description="Created",
+     *     @OA\JsonContent(ref="#/components/schemas/UserResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=422,
+     *     description="Validation error",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=500,
+     *     description="Server error",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   )
      * )
      */
     public function store(Request $request)
@@ -139,7 +163,7 @@ class UserController extends Controller
      *
      * @OA\Post(
      *   path="/api/users/bulk-delete",
-     *   tags={"Users"},
+     *   tags={"System","Users"},
      *   summary="Bulk delete users",
      *   @OA\RequestBody(
      *     required=true,
@@ -148,7 +172,21 @@ class UserController extends Controller
      *       @OA\Property(property="ids", type="array", @OA\Items(type="integer"))
      *     )
      *   ),
-     *   @OA\Response(response=200, description="OK")
+     *   @OA\Response(
+     *     response=200,
+     *     description="OK",
+     *     @OA\JsonContent(ref="#/components/schemas/BulkOperationResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=422,
+     *     description="Validation error",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=500,
+     *     description="Server error",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   )
      * )
      */
     public function bulkDelete(Request $request)
@@ -194,10 +232,19 @@ class UserController extends Controller
      *
      * @OA\Get(
      *   path="/api/users/search",
-     *   tags={"Users"},
+     *   tags={"System","Users"},
      *   summary="Search users",
      *   @OA\Parameter(name="q", in="query", required=true, @OA\Schema(type="string")),
-     *   @OA\Response(response=200, description="OK")
+     *   @OA\Response(
+     *     response=200,
+     *     description="OK",
+     *     @OA\JsonContent(ref="#/components/schemas/UserCollectionResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=500,
+     *     description="Server error",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   )
      * )
      */
     public function search(Request $request)
@@ -220,9 +267,18 @@ class UserController extends Controller
      *
      * @OA\Get(
      *   path="/api/users/stats",
-     *   tags={"Users"},
+     *   tags={"System","Users"},
      *   summary="User statistics",
-     *   @OA\Response(response=200, description="OK")
+     *   @OA\Response(
+     *     response=200,
+     *     description="OK",
+     *     @OA\JsonContent(ref="#/components/schemas/UserStatsResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=500,
+     *     description="Server error",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   )
      * )
      */
     public function stats()
@@ -246,9 +302,18 @@ class UserController extends Controller
      *
      * @OA\Get(
      *   path="/api/user",
-     *   tags={"Users"},
+     *   tags={"System","Users"},
      *   summary="Current authenticated user",
-     *   @OA\Response(response=200, description="OK")
+     *   @OA\Response(
+     *     response=200,
+     *     description="OK",
+     *     @OA\JsonContent(ref="#/components/schemas/CurrentUserResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=500,
+     *     description="Server error",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   )
      * )
      */
     public function me(): JsonResponse
@@ -265,11 +330,24 @@ class UserController extends Controller
      *
      * @OA\Get(
      *   path="/api/users/{code}",
-     *   tags={"Users"},
+     *   tags={"System","Users"},
      *   summary="Get user by code",
      *   @OA\Parameter(name="code", in="path", required=true, @OA\Schema(type="string")),
-     *   @OA\Response(response=200, description="OK"),
-     *   @OA\Response(response=404, description="Not Found")
+     *   @OA\Response(
+     *     response=200,
+     *     description="OK",
+     *     @OA\JsonContent(ref="#/components/schemas/UserResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=404,
+     *     description="Not Found",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=500,
+     *     description="Server error",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   )
      * )
      */
     public function show(string $code)
@@ -299,18 +377,37 @@ class UserController extends Controller
      *
      * @OA\Put(
      *   path="/api/users/{id}",
-     *   tags={"Users"},
+     *   tags={"System","Users"},
      *   summary="Update user",
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
      *   @OA\RequestBody(
      *     required=true,
      *     @OA\JsonContent(
      *       @OA\Property(property="name", type="string"),
-     *       @OA\Property(property="email", type="string"),
-     *       @OA\Property(property="password", type="string")
+     *       @OA\Property(property="email", type="string", format="email"),
+     *       @OA\Property(property="password", type="string", format="password")
      *     )
      *   ),
-     *   @OA\Response(response=200, description="OK")
+     *   @OA\Response(
+     *     response=200,
+     *     description="OK",
+     *     @OA\JsonContent(ref="#/components/schemas/UserResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=404,
+     *     description="Not Found",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=422,
+     *     description="Validation error",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=500,
+     *     description="Server error",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   )
      * )
      */
     public function update(Request $request, int $id)
@@ -335,10 +432,24 @@ class UserController extends Controller
      *
      * @OA\Delete(
      *   path="/api/users/{id}",
-     *   tags={"Users"},
+     *   tags={"System","Users"},
      *   summary="Delete user",
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
-     *   @OA\Response(response=200, description="OK")
+     *   @OA\Response(
+     *     response=200,
+     *     description="OK",
+     *     @OA\JsonContent(ref="#/components/schemas/DeleteResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=404,
+     *     description="Not Found",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=500,
+     *     description="Server error",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   )
      * )
      */
     public function destroy(int $id)
@@ -356,10 +467,24 @@ class UserController extends Controller
      *
      * @OA\Post(
      *   path="/api/users/{id}/restore",
-     *   tags={"Users"},
+     *   tags={"System","Users"},
      *   summary="Restore user",
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
-     *   @OA\Response(response=200, description="OK")
+     *   @OA\Response(
+     *     response=200,
+     *     description="OK",
+     *     @OA\JsonContent(ref="#/components/schemas/UserResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=404,
+     *     description="Not Found",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=500,
+     *     description="Server error",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   )
      * )
      */
     public function restore(int $id)
@@ -377,10 +502,24 @@ class UserController extends Controller
      *
      * @OA\Delete(
      *   path="/api/users/{id}/force",
-     *   tags={"Users"},
+     *   tags={"System","Users"},
      *   summary="Force delete user",
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
-     *   @OA\Response(response=200, description="OK")
+     *   @OA\Response(
+     *     response=200,
+     *     description="OK",
+     *     @OA\JsonContent(ref="#/components/schemas/DeleteResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=404,
+     *     description="Not Found",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=500,
+     *     description="Server error",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   )
      * )
      */
     public function forceDelete(int $id)
@@ -397,10 +536,24 @@ class UserController extends Controller
      * Enable user
      * @OA\Post(
      *   path="/api/users/{id}/enable",
-     *   tags={"Users"},
+     *   tags={"System","Users"},
      *   summary="Enable user",
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
-     *   @OA\Response(response=200, description="OK")
+     *   @OA\Response(
+     *     response=200,
+     *     description="OK",
+     *     @OA\JsonContent(ref="#/components/schemas/UserResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=404,
+     *     description="Not Found",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=500,
+     *     description="Server error",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   )
      * )
      */
     public function enable(int $id)
@@ -415,10 +568,24 @@ class UserController extends Controller
      * Disable user
      * @OA\Post(
      *   path="/api/users/{id}/disable",
-     *   tags={"Users"},
+     *   tags={"System","Users"},
      *   summary="Disable user",
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
-     *   @OA\Response(response=200, description="OK")
+     *   @OA\Response(
+     *     response=200,
+     *     description="OK",
+     *     @OA\JsonContent(ref="#/components/schemas/UserResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=404,
+     *     description="Not Found",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=500,
+     *     description="Server error",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   )
      * )
      */
     public function disable(int $id)
@@ -433,11 +600,25 @@ class UserController extends Controller
      * Lock user
      * @OA\Post(
      *   path="/api/users/{id}/lock",
-     *   tags={"Users"},
+     *   tags={"System","Users"},
      *   summary="Lock user",
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
      *   @OA\Parameter(name="seconds", in="query", required=false, @OA\Schema(type="integer")),
-     *   @OA\Response(response=200, description="OK")
+     *   @OA\Response(
+     *     response=200,
+     *     description="OK",
+     *     @OA\JsonContent(ref="#/components/schemas/UserResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=404,
+     *     description="Not Found",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=500,
+     *     description="Server error",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   )
      * )
      */
     public function lock(Request $request, int $id)
@@ -453,10 +634,24 @@ class UserController extends Controller
      * Unlock user
      * @OA\Post(
      *   path="/api/users/{id}/unlock",
-     *   tags={"Users"},
+     *   tags={"System","Users"},
      *   summary="Unlock user",
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
-     *   @OA\Response(response=200, description="OK")
+     *   @OA\Response(
+     *     response=200,
+     *     description="OK",
+     *     @OA\JsonContent(ref="#/components/schemas/UserResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=404,
+     *     description="Not Found",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   ),
+     *   @OA\Response(
+     *     response=500,
+     *     description="Server error",
+     *     @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
+     *   )
      * )
      */
     public function unlock(int $id)
@@ -467,3 +662,170 @@ class UserController extends Controller
         return $this->successResponse(new UserResource($user), 'User unlocked');
     }
 }
+
+
+/**
+ * @OA\Schema(
+ *   schema="ApiResponse",
+ *   type="object",
+ *   required={"success","message","code","timestamp"},
+ *   @OA\Property(property="success", type="boolean", example=true),
+ *   @OA\Property(property="message", type="string", example="Operation successful"),
+ *   @OA\Property(property="code", type="integer", example=200),
+ *   @OA\Property(property="data"),
+ *   @OA\Property(property="errors", type="object", nullable=true, example=null),
+ *   @OA\Property(property="correlation_id", type="string", nullable=true, example="01JDN3X6H1V5C0Y8K9P2R4M7TQ"),
+ *   @OA\Property(property="links", type="object", nullable=true,
+ *     @OA\Property(property="self", type="string", example="https://api.example.com/api/users/123"),
+ *     @OA\Property(property="update", type="string", example="https://api.example.com/api/users/123"),
+ *     @OA\Property(property="delete", type="string", example="https://api.example.com/api/users/123")
+ *   ),
+ *   @OA\Property(property="meta", type="object", nullable=true),
+ *   @OA\Property(property="debug", type="object", nullable=true),
+ *   @OA\Property(property="timestamp", type="string", format="date-time"),
+ *   @OA\Property(property="request_id", type="string", nullable=true)
+ * )
+ *
+ * @OA\Schema(
+ *   schema="User",
+ *   type="object",
+ *   @OA\Property(property="id", type="integer", example=123),
+ *   @OA\Property(property="code", type="string", example="USR-2024-000123"),
+ *   @OA\Property(property="name", type="string", example="Nguyen Van A"),
+ *   @OA\Property(property="email", type="string", example="a.nguyen@example.com"),
+ *   @OA\Property(property="is_active", type="boolean", example=true),
+ *   @OA\Property(property="created_at", type="string", format="date-time"),
+ *   @OA\Property(property="updated_at", type="string", format="date-time")
+ * )
+ *
+ * @OA\Schema(
+ *   schema="UserResponse",
+ *   allOf={
+ *     @OA\Schema(ref="#/components/schemas/ApiResponse"),
+ *     @OA\Schema(
+ *       @OA\Property(property="data", ref="#/components/schemas/User")
+ *     )
+ *   }
+ * )
+ *
+ * @OA\Schema(
+ *   schema="UserListResponse",
+ *   allOf={
+ *     @OA\Schema(ref="#/components/schemas/ApiResponse"),
+ *     @OA\Schema(
+ *       @OA\Property(
+ *         property="data",
+ *         type="array",
+ *         @OA\Items(ref="#/components/schemas/User")
+ *       ),
+ *       @OA\Property(property="meta", type="object",
+ *         @OA\Property(property="current_page", type="integer", example=1),
+ *         @OA\Property(property="per_page", type="integer", example=15),
+ *         @OA\Property(property="total", type="integer", example=150)
+ *       )
+ *     )
+ *   }
+ * )
+ *
+ * @OA\Schema(
+ *   schema="ErrorResponse",
+ *   allOf={
+ *     @OA\Schema(ref="#/components/schemas/ApiResponse"),
+ *     @OA\Schema(
+ *       @OA\Property(property="success", type="boolean", example=false),
+ *       @OA\Property(property="message", type="string", example="Validation failed"),
+ *       @OA\Property(property="code", type="integer", example=422),
+ *       @OA\Property(property="errors", type="object",
+ *         @OA\Property(property="email", type="array",
+ *           @OA\Items(type="string", example="The email has already been taken.")
+ *         )
+ *       )
+ *     )
+ *   }
+ * )
+ *
+ * @OA\Tag(
+ *   name="System",
+ *   description="System module APIs (User management, configuration, etc.)"
+ * )
+ */
+
+
+/**
+ * @OA\Schema(
+ *   schema="UserCollectionResponse",
+ *   allOf={
+ *     @OA\Schema(ref="#/components/schemas/ApiResponse"),
+ *     @OA\Schema(
+ *       @OA\Property(
+ *         property="data",
+ *         type="array",
+ *         @OA\Items(ref="#/components/schemas/User")
+ *       )
+ *     )
+ *   }
+ * )
+ *
+ * @OA\Schema(
+ *   schema="BulkOperationResponse",
+ *   allOf={
+ *     @OA\Schema(ref="#/components/schemas/ApiResponse"),
+ *     @OA\Schema(
+ *       @OA\Property(property="operation", type="string", example="delete"),
+ *       @OA\Property(property="successful", type="integer", example=3),
+ *       @OA\Property(property="failed", type="integer", example=1),
+ *       @OA\Property(
+ *         property="data",
+ *         type="array",
+ *         @OA\Items(type="object",
+ *           @OA\Property(property="id", type="integer", example=10),
+ *           @OA\Property(property="status", type="string", example="success"),
+ *           @OA\Property(property="error", type="string", nullable=true, example=null)
+ *         )
+ *       )
+ *     )
+ *   }
+ * )
+ *
+ * @OA\Schema(
+ *   schema="DeleteResponse",
+ *   allOf={
+ *     @OA\Schema(ref="#/components/schemas/ApiResponse"),
+ *     @OA\Schema(
+ *       @OA\Property(property="data", type="object",
+ *         @OA\Property(property="deleted", type="boolean", example=true)
+ *       )
+ *     )
+ *   }
+ * )
+ *
+ * @OA\Schema(
+ *   schema="UserStatsResponse",
+ *   allOf={
+ *     @OA\Schema(ref="#/components/schemas/ApiResponse"),
+ *     @OA\Schema(
+ *       @OA\Property(property="data", type="object",
+ *         @OA\Property(property="total_users", type="integer", example=120),
+ *         @OA\Property(property="active_users", type="integer", example=110),
+ *         @OA\Property(property="new_today", type="integer", example=5)
+ *       )
+ *     )
+ *   }
+ * )
+ *
+ * @OA\Schema(
+ *   schema="CurrentUserResponse",
+ *   allOf={
+ *     @OA\Schema(ref="#/components/schemas/ApiResponse"),
+ *     @OA\Schema(
+ *       @OA\Property(
+ *         property="data",
+ *         nullable=true,
+ *         oneOf={
+ *           @OA\Schema(ref="#/components/schemas/User")
+ *         }
+ *       )
+ *     )
+ *   }
+ * )
+ */
