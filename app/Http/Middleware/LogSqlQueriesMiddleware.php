@@ -27,12 +27,12 @@ class LogSqlQueriesMiddleware
                 $batch[] = [
                     'sql' => $query['query'],
                     'params' => $query['bindings'],
-                    'duration' => $query['time'] / 1000, 
+                    'duration' => $query['time'] / 1000,
                     'module' => $request->route()?->getActionName(),
                 ];
             }
 
-            $this->logger->logSqlBatch($batch);
+            $this->logger->logFullRequestToSqlLog($batch);
         }
 
         return $response;

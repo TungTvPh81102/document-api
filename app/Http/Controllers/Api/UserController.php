@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Systems\StoreUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\LoggerService;
@@ -24,9 +25,11 @@ class UserController extends Controller
      * )
      */
     public function __construct(
-        private UserService $userService,
+        private UserService   $userService,
         private LoggerService $logger
-    ) {}
+    )
+    {
+    }
 
     /**
      * List users
@@ -79,6 +82,7 @@ class UserController extends Controller
         }
     }
 
+
     /**
      * Create a user
      *
@@ -86,13 +90,19 @@ class UserController extends Controller
      *   path="/api/users",
      *   tags={"System","Users"},
      *   summary="Create user",
+     *   description="Tạo mới người dùng. Nếu cần upload ảnh đại diện (avatar), sử dụng content-type multipart/form-data.",
      *   @OA\RequestBody(
      *     required=true,
      *     @OA\JsonContent(
-     *       required={"name","email","password"},
-     *       @OA\Property(property="name", type="string"),
-     *       @OA\Property(property="email", type="string", format="email"),
-     *       @OA\Property(property="password", type="string", format="password")
+     *       required={"name","email","password","password_confirmation"},
+     *       @OA\Property(property="name", type="string", maxLength=255, example="Nguyễn Văn A", description="Tên người dùng, tối đa 255 ký tự"),
+     *       @OA\Property(property="email", type="string", format="email", maxLength=255, example="user@example.com", description="Email duy nhất, định dạng hợp lệ"),
+     *       @OA\Property(property="password", type="string", format="password", minLength=8, example="P@ssw0rd!", description="Mật khẩu, tối thiểu 8 ký tự"),
+     *       @OA\Property(property="password_confirmation", type="string", format="password", minLength=8, example="P@ssw0rd!", description="Xác nhận mật khẩu, phải khớp với password"),
+     *       @OA\Property(property="phone", type="string", maxLength=20, example="+84901234567", description="Số điện thoại duy nhất, tối đa 20 ký tự"),
+     *       @OA\Property(property="date_of_birth", type="string", format="date", example="1990-01-01", description="Ngày sinh, định dạng YYYY-MM-DD"),
+     *       @OA\Property(property="gender", type="string", example="male", description="Giới tính: male, female, other"),
+     *       @OA\Property(property="enabled", type="boolean", example=true, description="Trạng thái kích hoạt (true/false)")
      *     )
      *   ),
      *   @OA\Response(
@@ -112,20 +122,14 @@ class UserController extends Controller
      *   )
      * )
      */
-    public function store(Request $request)
+    public function store(StoreUserRequest $request)
     {
-        $corrId = (string) Str::orderedUuid();
+        $corrId = (string)Str::orderedUuid();
 
         try {
-            $validated = $request->validate([
-                'name' => 'required|string|max:255',
-                'email' => 'required|email|unique:users',
-                'password' => 'required|min:8',
-            ]);
+            $data = $request->validated();
+            $user = $this->userService->createUser($data);
 
-            $user = $this->userService->createUser($validated);
-
-            // Set correlation ID and add HATEOAS links
             $response = $this->setCorrelationId($corrId)
                 ->withLinks([
                     'self' => route('users.show', $user->code ?? $user->id),
@@ -141,17 +145,10 @@ class UserController extends Controller
             return $response;
         } catch (\Illuminate\Validation\ValidationException $e) {
             return $this->validationErrorResponse(
-                $e->errors(),
-                'Validation failed'
+                $e->errors()
             );
         } catch (\Throwable $e) {
-            $this->logger->logServiceError(
-                self::class,
-                __FUNCTION__,
-                $e,
-                ['correlation_id' => $corrId]
-            );
-
+            $this->logger->logApiError($e, $request);
             return $this->setCorrelationId($corrId)
                 ->serverErrorResponse('Failed to create user', $e);
         }
@@ -625,7 +622,7 @@ class UserController extends Controller
     {
         $user = User::find($id);
         if (!$user) return $this->notFoundResponse('User not found', 'User');
-        $seconds = (int) $request->query('seconds', 3600);
+        $seconds = (int)$request->query('seconds', 3600);
         $user = $this->userService->lockUser($user, $seconds);
         return $this->successResponse(new UserResource($user), 'User locked');
     }

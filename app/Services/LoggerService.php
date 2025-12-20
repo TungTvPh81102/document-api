@@ -5,6 +5,7 @@ namespace App\Services;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Throwable;
 use App\Support\SecurityUtil;
 
@@ -14,111 +15,118 @@ class LoggerService
     private const SLOW_QUERY_THRESHOLD = 1000;
 
     /**
-     * Persist the full HTTP request into cim_sql_log table using existing columns.
-     * - sql_text: "HTTP {METHOD} {PATH}"
-     * - sql_params: JSON with sanitized headers, query, body
-     * - operation: 'HTTP_REQUEST'
-     * - duration_ms, executed_by, user_id, module, ip_address, user_agent, is_error, error_message
+     * Unified logging to cim_sql_log table.
+     * Supports HTTP Requests, Single SQL queries, and Batch SQL queries.
+     *
+     * @param mixed $input Can be Illuminate\Http\Request, string (SQL), or array (Batch SQL)
      */
     public function logFullRequestToSqlLog(
-        ?Request $request = null,
-        ?int $statusCode = null,
-        ?float $duration = null,
-        bool $isError = false,
-        ?string $errorMessage = null
-    ): void {
-        try {
-            $request = $request ?? request();
-
-            $headers = [];
-            foreach ($request->headers->all() as $key => $values) {
-                $headers[$key] = is_array($values) ? implode(',', $values) : $values;
-            }
-
-            $payload = [
-                'status_code' => $statusCode,
-                'headers' => $this->sanitizeParams($headers),
-                'query' => $this->sanitizeParams($request->query() ?? []),
-                'body' => $this->sanitizeParams($request->all() ?? []),
-            ];
-
-            DB::table('cim_sql_log')->insert([
-                'id' => DB::raw('uuid_generate_v4()'),
-                'sql_text' => sprintf('HTTP %s %s', $request->getMethod(), $request->getPathInfo()),
-                'sql_params' => json_encode($payload),
-                'operation' => 'HTTP_REQUEST',
-                'duration_ms' => $duration ? round($duration * 1000, 2) : null,
-                'executed_by' => auth()->user()?->name ?? 'system',
-                'user_id' => auth()->id(),
-                'module' => $request?->route()?->getActionName(),
-                'ip_address' => $request?->ip(),
-                'user_agent' => $request?->userAgent(),
-                'is_error' => $isError,
-                'error_message' => $errorMessage,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('Failed to log full HTTP request to cim_sql_log', [
-                'error' => $e->getMessage(),
-                'path' => $request?->path(),
-            ]);
-        }
-    }
-
-    /**
-     * Log SQL query to database
-     */
-    public function logSqlQuery(
-        string $sqlText,
-        ?array $params = null,
+        mixed   $input = null,
+        ?int    $statusCode = null,
+        ?float  $duration = null,
+        bool    $isError = false,
+        ?string $message = null,
+        ?array  $params = null,
         ?string $operation = null,
-        ?float $duration = null,
-        ?string $module = null,
-        bool $isError = false,
-        ?string $errorMessage = null
+        ?string $module = null
     ): void {
         try {
+            $records = [];
             $request = request();
 
-            DB::table('cim_sql_log')->insert([
-                'id' => DB::raw('uuid_generate_v4()'),
-                'sql_text' => $sqlText,
-                'sql_params' => $params ? json_encode($this->sanitizeParams($params)) : null,
-                'operation' => $operation ?? $this->detectOperation($sqlText),
-                'duration_ms' => $duration ? round($duration * 1000, 2) : null,
-                'executed_by' => auth()->user()?->name ?? 'system',
-                'user_id' => auth()->id(),
-                'module' => $module,
-                'ip_address' => $request?->ip(),
-                'user_agent' => $request?->userAgent(),
-                'is_error' => $isError,
-                'error_message' => $errorMessage,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+            if ($input instanceof Request) {
+                // Case 1: HTTP Request
+                $headers = [];
+                foreach ($input->headers->all() as $key => $values) {
+                    $headers[$key] = is_array($values) ? implode(',', $values) : $values;
+                }
 
-            // Log slow queries
-            if ($duration && ($duration * 1000) > self::SLOW_QUERY_THRESHOLD) {
-                $this->logPerformanceIssue(
-                    'sql_query',
-                    "Slow query detected: {$operation}",
-                    $duration,
-                    self::SLOW_QUERY_THRESHOLD / 1000,
-                    [
-                        'sql' => substr($sqlText, 0, 200),
-                        'module' => $module
-                    ]
-                );
+                $payload = [
+                    'status_code' => $statusCode ?? 200,
+                    'headers' => $this->sanitizeParams($headers),
+                    'query' => $this->sanitizeParams($input->query() ?? []),
+                    'body' => $this->sanitizeParams($input->all() ?? []),
+                ];
+
+                $records[] = [
+                    'id' => Str::orderedUuid(),
+                    'sql_text' => sprintf('HTTP %s %s', $input->getMethod(), $input->getPathInfo()),
+                    'sql_params' => json_encode($payload),
+                    'operation' => 'HTTP_REQUEST',
+                    'duration_ms' => $duration ? round($duration * 1000, 2) : 0,
+                    'executed_by' => auth()->user()?->name ?? 'system',
+                    'user_id' => auth()->id(),
+                    'module' => $input?->route()?->getActionName() ?? 'unknown',
+                    'ip_address' => $input?->ip() ?? 'unknown',
+                    'user_agent' => $input?->userAgent() ?? 'unknown',
+                    'is_error' => $isError,
+                    'message' => $message ?? ($isError ? 'Unknown Error' : 'Success'),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            } elseif (is_string($input)) {
+                // Case 2: Single SQL Query
+                $records[] = [
+                    'id' => Str::orderedUuid(),
+                    'sql_text' => $input,
+                    'sql_params' => $params ? json_encode($this->sanitizeParams($params)) : json_encode([]),
+                    'operation' => $operation ?? $this->detectOperation($input),
+                    'duration_ms' => $duration ? round($duration * 1000, 2) : 0,
+                    'executed_by' => auth()->user()?->name ?? 'system',
+                    'user_id' => auth()->id(),
+                    'module' => $module ?? $this->getCallerModule() ?? 'unknown',
+                    'ip_address' => $request?->ip() ?? 'unknown',
+                    'user_agent' => $request?->userAgent() ?? 'unknown',
+                    'is_error' => $isError,
+                    'message' => $message ?? ($isError ? 'Query Failed' : 'Success'),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+
+                // Log slow queries
+                if ($duration && ($duration * 1000) > self::SLOW_QUERY_THRESHOLD) {
+                    $this->logPerformanceIssue(
+                        'sql_query',
+                        "Slow query detected: {$operation}",
+                        $duration,
+                        self::SLOW_QUERY_THRESHOLD / 1000,
+                        ['sql' => substr($input, 0, 200), 'module' => $module]
+                    );
+                }
+            } elseif (is_array($input)) {
+                // Case 3: Batch SQL Queries
+                foreach ($input as $query) {
+                    $sql = $query['sql'] ?? 'UNKNOWN SQL';
+                    $records[] = [
+                        'id' => Str::orderedUuid(),
+                        'sql_text' => $sql,
+                        'sql_params' => isset($query['params']) ? json_encode($this->sanitizeParams($query['params'])) : json_encode([]),
+                        'operation' => $query['operation'] ?? $this->detectOperation($sql),
+                        'duration_ms' => isset($query['duration']) ? round($query['duration'] * 1000, 2) : 0,
+                        'executed_by' => auth()->user()?->name ?? 'system',
+                        'user_id' => auth()->id(),
+                        'module' => $query['module'] ?? $this->getCallerModule() ?? 'unknown',
+                        'ip_address' => $request?->ip() ?? 'unknown',
+                        'user_agent' => $request?->userAgent() ?? 'unknown',
+                        'is_error' => $query['is_error'] ?? false,
+                        'message' => $query['error_message'] ?? $message ?? ($isError ? 'Batch Query Failed' : 'Success'),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
+            }
+
+            if (!empty($records)) {
+                DB::table('cim_sql_log')->insert($records);
             }
         } catch (\Throwable $e) {
-            // Fallback to file log if database logging fails
-            Log::error('Failed to log SQL query to database', [
+            Log::error('Failed to log to cim_sql_log', [
                 'error' => $e->getMessage(),
-                'sql' => substr($sqlText, 0, 200)
+                'type' => gettype($input)
             ]);
         }
     }
+
 
     /**
      * Log API errors with structured context
@@ -201,13 +209,15 @@ class LoggerService
         string $model,
         ?string $id = null,
         ?float $duration = null,
-        ?array $metadata = []
+        ?array $metadata = [],
+        bool $isError = false,
+        ?string $message = null
     ): void {
         $context = [
             'operation' => $operation,
             'model' => $model,
             'id' => $id,
-            'duration_ms' => $duration ? round($duration * 1000, 2) : null,
+            'duration_ms' => $duration ? round($duration * 1000, 2) : 0,
             'user_id' => auth()->id(),
             'timestamp' => now()->toISOString(),
         ];
@@ -218,16 +228,23 @@ class LoggerService
 
         Log::channel('database')->info("Database Operation: $operation on $model", $context);
 
-        // Optionally log to SQL log table
-        if ($duration) {
-            $this->logSqlQuery(
-                "Database operation: $operation",
-                ['model' => $model, 'id' => $id],
-                $operation,
-                $duration,
-                $this->getCallerModule()
-            );
+        // Map model name to table name if possible, or just use model name
+        $tableName = strtolower(class_basename($model)) . 's'; // Simple pluralization
+        $sqlText = sprintf('%s %s', strtoupper($operation), strtoupper($tableName));
+        if ($isError) {
+            $sqlText .= ' FAILED';
         }
+
+        $this->logFullRequestToSqlLog(
+            $sqlText,
+            null,
+            $duration,
+            $isError,
+            $message,
+            $metadata,
+            strtoupper($operation),
+            $this->getCallerModule()
+        );
     }
 
     /**
@@ -308,14 +325,15 @@ class LoggerService
         Log::channel('service_errors')->error("Service Error: $service::$method", $errorContext);
 
         // Also log to SQL log table for critical errors
-        $this->logSqlQuery(
+        $this->logFullRequestToSqlLog(
             "Service error in $service::$method",
+            null,
+            null,
+            true,
+            $e->getMessage(),
             ['error' => $e->getMessage()],
             'ERROR',
-            null,
-            $service,
-            true,
-            $e->getMessage()
+            $service
         );
     }
 
@@ -382,51 +400,15 @@ class LoggerService
      */
     private function getCallerModule(): ?string
     {
-        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 4);
+        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10);
 
         foreach ($trace as $frame) {
-            if (isset($frame['class']) && $frame['class'] !== self::class) {
+            if (isset($frame['class']) && !in_array($frame['class'], [self::class, 'App\Http\Middleware\LogHttpRequestsMiddleware', 'App\Http\Middleware\LogSqlQueriesMiddleware'])) {
                 return $frame['class'];
             }
         }
 
-        return null;
+        return 'unknown';
     }
 
-    /**
-     * Batch log multiple SQL queries (for optimization)
-     */
-    public function logSqlBatch(array $queries): void
-    {
-        try {
-            $records = [];
-            $request = request();
-
-            foreach ($queries as $query) {
-                $records[] = [
-                    'id' => DB::raw('uuid_generate_v4()'),
-                    'sql_text' => $query['sql'] ?? '',
-                    'sql_params' => isset($query['params']) ? json_encode($this->sanitizeParams($query['params'])) : null,
-                    'operation' => $query['operation'] ?? $this->detectOperation($query['sql'] ?? ''),
-                    'duration_ms' => isset($query['duration']) ? round($query['duration'] * 1000, 2) : null,
-                    'executed_by' => auth()->user()?->name ?? 'system',
-                    'user_id' => auth()->id(),
-                    'module' => $query['module'] ?? null,
-                    'ip_address' => $request?->ip(),
-                    'user_agent' => $request?->userAgent(),
-                    'is_error' => $query['is_error'] ?? false,
-                    'error_message' => $query['error_message'] ?? null,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
-            }
-
-            DB::table('cim_sql_log')->insert($records);
-        } catch (\Throwable $e) {
-            Log::error('Failed to batch log SQL queries', [
-                'error' => $e->getMessage(),
-                'count' => count($queries)
-            ]);
-        }
-    }
 }

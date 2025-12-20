@@ -1,4 +1,4 @@
-<?php 
+<?php
 
 namespace App\Models;
 
@@ -22,7 +22,7 @@ class CimSqlLog extends Model
         'ip_address',
         'user_agent',
         'is_error',
-        'error_message',
+        'message'
     ];
 
     protected $casts = [
