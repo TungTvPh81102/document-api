@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Systems\StoreUserRequest;
+use App\Http\Requests\SystemConsoles\User\StoreUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\LoggerService;
@@ -12,7 +12,6 @@ use App\Traits\ApiResponseTrait;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use OpenApi\Annotations as OA;
 
 class UserController extends Controller
 {

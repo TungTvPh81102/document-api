@@ -12,6 +12,12 @@ class CimSqlLog extends Model
     protected $table = 'cim_sql_log';
 
     protected $fillable = [
+        'request_id',
+        'method',
+        'url',
+        'status',
+        'payload',
+        'response_data',
         'sql_text',
         'sql_params',
         'operation',

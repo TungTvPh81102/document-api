@@ -11,10 +11,14 @@ class Permission extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id',
-        'resource',
+        'name',
+        'slug',
         'action',
-        'resource_id',
+        'resource',
+        'description',
+        'is_system',
+        'created_by',
+        'updated_by'
     ];
 
     protected $casts = [
