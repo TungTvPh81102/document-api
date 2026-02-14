@@ -13,29 +13,36 @@ class CimSqlLog extends Model
 
     protected $fillable = [
         'request_id',
+        'level',
+        'service',
         'method',
         'url',
-        'status',
-        'payload',
+        'route',
+        'status_code',
+        'function_name',
+        'logic_name',
+        'parameters',
         'response_data',
-        'sql_text',
-        'sql_params',
-        'operation',
+        'fail_result',
+        'start_time',
+        'end_time',
         'duration_ms',
-        'executed_by',
         'user_id',
-        'module',
         'ip_address',
         'user_agent',
         'is_error',
-        'message'
+        'message',
     ];
 
     protected $casts = [
-        'sql_params' => 'array',
-        'is_error' => 'boolean',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
+        'parameters'  => 'array',
+        'is_error'    => 'boolean',
+        'duration_ms' => 'float',
+        'status_code' => 'integer',
+        'start_time'  => 'datetime',
+        'end_time'    => 'datetime',
+        'created_at'  => 'datetime',
+        'updated_at'  => 'datetime',
     ];
 
     public function scopeErrors($query)
@@ -43,23 +50,28 @@ class CimSqlLog extends Model
         return $query->where('is_error', true);
     }
 
-    public function scopeSlowQueries($query, int $threshold = 1000)
+    public function scopeSlowRequests($query, int $thresholdMs = 1000)
     {
-        return $query->where('duration_ms', '>', $threshold);
+        return $query->where('duration_ms', '>', $thresholdMs);
     }
 
-    public function scopeByOperation($query, string $operation)
+    public function scopeByLevel($query, string $level)
     {
-        return $query->where('operation', $operation);
+        return $query->where('level', $level);
     }
 
-    public function scopeByModule($query, string $module)
+    public function scopeByRoute($query, string $route)
     {
-        return $query->where('module', $module);
+        return $query->where('route', 'like', "%{$route}%");
     }
 
     public function scopeByUser($query, string $userId)
     {
         return $query->where('user_id', $userId);
+    }
+
+    public function scopeByTraceId($query, string $traceId)
+    {
+        return $query->where('request_id', $traceId);
     }
 }

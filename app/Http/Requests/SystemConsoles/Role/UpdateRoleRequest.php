@@ -58,27 +58,27 @@ class UpdateRoleRequest extends BaseFormRequest
     public function messages(): array
     {
         return [
-            'name.required' => 'Tên vai trò không được để trống',
-            'name.string' => 'Tên vai trò phải là chuỗi ký tự',
-            'name.max' => 'Tên vai trò không được vượt quá 255 ký tự',
-            'name.unique' => 'Tên vai trò đã tồn tại',
+            'name.required' => 'Role name is required.',
+            'name.string' => 'Role name must be a string.',
+            'name.max' => 'Role name must not exceed 255 characters.',
+            'name.unique' => 'This role name already exists.',
 
-            'slug.required' => 'Slug không được để trống',
-            'slug.string' => 'Slug phải là chuỗi ký tự',
-            'slug.max' => 'Slug không được vượt quá 255 ký tự',
-            'slug.alpha_dash' => 'Slug chỉ được chứa chữ cái, số, dấu gạch ngang và gạch dưới',
-            'slug.unique' => 'Slug đã tồn tại',
+            'slug.required' => 'Slug is required.',
+            'slug.string' => 'Slug must be a string.',
+            'slug.max' => 'Slug must not exceed 255 characters.',
+            'slug.alpha_dash' => 'Slug may only contain letters, numbers, dashes, and underscores.',
+            'slug.unique' => 'This slug already exists.',
 
-            'description.string' => 'Mô tả phải là chuỗi ký tự',
-            'description.max' => 'Mô tả không được vượt quá 1000 ký tự',
+            'description.string' => 'Description must be a string.',
+            'description.max' => 'Description must not exceed 1000 characters.',
 
-            'is_system.required' => 'Trường is_system là bắt buộc',
-            'is_system.boolean' => 'is_system phải là kiểu boolean (true/false)',
+            'is_system.required' => 'The is_system field is required.',
+            'is_system.boolean' => 'The is_system field must be a boolean (true/false).',
 
-            'level.integer' => 'Level phải là số nguyên',
-            'level.min' => 'Level không được nhỏ hơn 0',
+            'level.integer' => 'Level must be an integer.',
+            'level.min' => 'Level must be at least 0.',
 
-            'enabled.boolean' => 'Trạng thái kích hoạt phải là kiểu boolean (true/false)',
+            'enabled.boolean' => 'Enable status must be a boolean (true/false).',
         ];
     }
 }

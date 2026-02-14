@@ -36,18 +36,18 @@ Route::prefix('users')->name('users.')->group(function () {
 
 Route::prefix('roles')->name('roles.')->group(function () {
     Route::get('/', [\App\Http\Controllers\Api\SystemConsole\RoleController::class, 'index'])->name('index');
-    Route::get('/search', [\App\Http\Controllers\Api\SystemConsole\RoleController::class, 'search'])->name('search');
     Route::get('/{id}', [\App\Http\Controllers\Api\SystemConsole\RoleController::class, 'show'])->name('show');
     Route::post('/', [\App\Http\Controllers\Api\SystemConsole\RoleController::class, 'store'])->name('store');
     Route::put('/{id}', [\App\Http\Controllers\Api\SystemConsole\RoleController::class, 'update'])->name('update');
+    Route::delete('/{id}', [\App\Http\Controllers\Api\SystemConsole\RoleController::class, 'destroy'])->name('destroy');
 });
 
 Route::prefix('permissions')->name('permissions.')->group(function () {
-    Route::get('/', \App\Http\Controllers\Api\SystemConsole\PermissionController::class, 'index')->name('index');
-    Route::get('/{id}', \App\Http\Controllers\Api\SystemConsole\PermissionController::class, 'show')->name('show');
-    Route::post('/', \App\Http\Controllers\Api\SystemConsole\PermissionController::class, 'store')->name('store');
-    Route::put('/{id}', \App\Http\Controllers\Api\SystemConsole\PermissionController::class, 'update')->name('update');
-    Route::delete('/{id}', \App\Http\Controllers\Api\SystemConsole\PermissionController::class, 'delete')->name('delete');
+    Route::get('/', [\App\Http\Controllers\Api\SystemConsole\PermissionController::class, 'index'])->name('index');
+    Route::get('/{id}', [\App\Http\Controllers\Api\SystemConsole\PermissionController::class, 'show'])->name('show');
+    Route::post('/', [\App\Http\Controllers\Api\SystemConsole\PermissionController::class, 'store'])->name('store');
+    Route::put('/{id}', [\App\Http\Controllers\Api\SystemConsole\PermissionController::class, 'update'])->name('update');
+    Route::delete('/{id}', [\App\Http\Controllers\Api\SystemConsole\PermissionController::class, 'delete'])->name('delete');
 });
 
 // });

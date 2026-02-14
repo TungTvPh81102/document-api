@@ -3,412 +3,210 @@
 namespace App\Services;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use Throwable;
 use App\Support\SecurityUtil;
+use Throwable;
 
+/**
+ * Unified Grafana/Loki-compatible logger.
+ *
+ * Every API request is logged ONCE via middleware to:
+ *   1. Database (cim_sql_log) – for queryable audit trail
+ *   2. Structured JSON file  – for Promtail/Loki/Grafana ingestion
+ */
 class LoggerService
 {
-    private const SENSITIVE_FIELDS = ['password', 'token', 'secret', 'api_key', 'credit_card', 'cvv', 'pin'];
-    private const SLOW_QUERY_THRESHOLD = 1000;
+    private const SERVICE_NAME = 'document-api';
+
+    private const SENSITIVE_FIELDS = [
+        'password', 'password_confirmation', 'token',
+        'secret', 'api_key', 'credit_card', 'cvv', 'pin',
+    ];
 
     /**
-     * Unified logging to cim_sql_log table.
-     * Supports HTTP Requests, Single SQL queries, and Batch SQL queries.
-     *
-     * @param mixed $input Can be Illuminate\Http\Request, string (SQL), or array (Batch SQL)
+     * Log a complete HTTP request/response cycle.
+     * Called by LogHttpRequestsMiddleware after the response is ready.
      */
-    public function logFullRequestToSqlLog(
-        mixed   $input = null,
-        ?int    $statusCode = null,
-        ?float  $duration = null,
-        bool    $isError = false,
-        ?string $message = null,
-        ?array  $params = null,
-        ?string $operation = null,
-        ?string $module = null
+    public function logRequest(
+        Request   $request,
+        mixed     $response,
+        string    $startTime,
+        string    $endTime,
+        float     $durationMs,
+        bool      $isError = false,
+        ?string   $failResult = null,
     ): void {
         try {
-            $records = [];
-            $request = request();
+            $traceId      = $request->header('X-Request-ID', (string) Str::orderedUuid());
+            $statusCode   = method_exists($response, 'getStatusCode') ? $response->getStatusCode() : 500;
+            $level        = $this->resolveLevel($statusCode, $isError);
+            $action       = $this->resolveAction($request);
+            $functionName = $action['function'];
+            $logicName    = $action['controller'];
 
-            if ($input instanceof Request) {
-                // Case 1: HTTP Request
-                $headers = [];
-                foreach ($input->headers->all() as $key => $values) {
-                    $headers[$key] = is_array($values) ? implode(',', $values) : $values;
-                }
+            // ── Build the structured payload ──
+            $logData = [
+                'timestamp'        => $endTime,
+                'level'            => $level,
+                'service'          => self::SERVICE_NAME,
+                'trace_id'         => $traceId,
+                'method'           => $request->getMethod(),
+                'route'            => $request->getPathInfo(),
+                'status_code'      => $statusCode,
+                'duration_ms'      => round($durationMs, 2),
+                'function_name'    => $functionName,
+                'logic_name'       => $logicName,
+                'user_id'          => auth()->id() ?? 'guest',
+                'ip'               => $request->ip(),
+                'user_agent'       => Str::limit($request->userAgent(), 255),
+                'start_time'       => $startTime,
+                'end_time'         => $endTime,
+                'parameters'       => $this->sanitize($this->extractParameters($request)),
+                'response_summary' => $this->extractResponseSummary($response),
+            ];
 
-                $payload = [
-                    'status_code' => $statusCode ?? 200,
-                    'headers' => $this->sanitizeParams($headers),
-                    'query' => $this->sanitizeParams($input->query() ?? []),
-                    'body' => $this->sanitizeParams($input->all() ?? []),
-                ];
-
-                $records[] = [
-                    'id' => Str::orderedUuid(),
-                    'sql_text' => sprintf('HTTP %s %s', $input->getMethod(), $input->getPathInfo()),
-                    'sql_params' => json_encode($payload),
-                    'operation' => 'HTTP_REQUEST',
-                    'duration_ms' => $duration ? round($duration * 1000, 2) : 0,
-                    'executed_by' => auth()->user()?->name ?? 'system',
-                    'user_id' => auth()->id(),
-                    'module' => $input?->route()?->getActionName() ?? 'unknown',
-                    'ip_address' => $input?->ip() ?? 'unknown',
-                    'user_agent' => $input?->userAgent() ?? 'unknown',
-                    'is_error' => $isError,
-                    'message' => $message ?? ($isError ? 'Unknown Error' : 'Success'),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
-            } elseif (is_string($input)) {
-                // Case 2: Single SQL Query
-                $records[] = [
-                    'id' => Str::orderedUuid(),
-                    'sql_text' => $input,
-                    'sql_params' => $params ? json_encode($this->sanitizeParams($params)) : json_encode([]),
-                    'operation' => $operation ?? $this->detectOperation($input),
-                    'duration_ms' => $duration ? round($duration * 1000, 2) : 0,
-                    'executed_by' => auth()->user()?->name ?? 'system',
-                    'user_id' => auth()->id(),
-                    'module' => $module ?? $this->getCallerModule() ?? 'unknown',
-                    'ip_address' => $request?->ip() ?? 'unknown',
-                    'user_agent' => $request?->userAgent() ?? 'unknown',
-                    'is_error' => $isError,
-                    'message' => $message ?? ($isError ? 'Query Failed' : 'Success'),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
-
-                // Log slow queries
-                if ($duration && ($duration * 1000) > self::SLOW_QUERY_THRESHOLD) {
-                    $this->logPerformanceIssue(
-                        'sql_query',
-                        "Slow query detected: {$operation}",
-                        $duration,
-                        self::SLOW_QUERY_THRESHOLD / 1000,
-                        ['sql' => substr($input, 0, 200), 'module' => $module]
-                    );
-                }
-            } elseif (is_array($input)) {
-                // Case 3: Batch SQL Queries
-                foreach ($input as $query) {
-                    $sql = $query['sql'] ?? 'UNKNOWN SQL';
-                    $records[] = [
-                        'id' => Str::orderedUuid(),
-                        'sql_text' => $sql,
-                        'sql_params' => isset($query['params']) ? json_encode($this->sanitizeParams($query['params'])) : json_encode([]),
-                        'operation' => $query['operation'] ?? $this->detectOperation($sql),
-                        'duration_ms' => isset($query['duration']) ? round($query['duration'] * 1000, 2) : 0,
-                        'executed_by' => auth()->user()?->name ?? 'system',
-                        'user_id' => auth()->id(),
-                        'module' => $query['module'] ?? $this->getCallerModule() ?? 'unknown',
-                        'ip_address' => $request?->ip() ?? 'unknown',
-                        'user_agent' => $request?->userAgent() ?? 'unknown',
-                        'is_error' => $query['is_error'] ?? false,
-                        'message' => $query['error_message'] ?? $message ?? ($isError ? 'Batch Query Failed' : 'Success'),
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ];
-                }
+            if ($isError && $failResult) {
+                $logData['fail_result'] = $failResult;
             }
 
-            if (!empty($records)) {
-                DB::table('cim_sql_log')->insert($records);
-            }
-        } catch (\Throwable $e) {
-            Log::error('Failed to log to cim_sql_log', [
+            // ── 1. Write structured JSON to file (for Promtail/Loki) ──
+            $this->writeToFile($logData, $level);
+
+            // ── 2. Write to database (cim_sql_log) ──
+            $this->writeToDatabase($logData, $traceId);
+
+        } catch (Throwable $e) {
+            // Fallback: never let logging break the app
+            Log::error('[LoggerService] Failed to log request', [
                 'error' => $e->getMessage(),
-                'type' => gettype($input)
+                'file'  => $e->getFile(),
+                'line'  => $e->getLine(),
             ]);
         }
     }
 
+    /* ═══════════════════════════════════════════════════════════════
+     *  Private helpers
+     * ═══════════════════════════════════════════════════════════════ */
 
     /**
-     * Log API errors with structured context
+     * Write structured log to the grafana file channel.
      */
-    public function logApiError(Throwable $e, ?Request $request = null): void
+    private function writeToFile(array $data, string $level): void
     {
-        $request = $request ?? request();
-        $context = $this->buildContext($e, $request);
+        $channel = Log::channel('grafana');
 
-        Log::channel('api')->error($e->getMessage(), $context);
+        match ($level) {
+            'error', 'critical' => $channel->error(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
+            'warning'           => $channel->warning(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
+            default             => $channel->info(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
+        };
     }
 
     /**
-     * Log API request
+     * Insert log record into cim_sql_log table.
      */
-    public function logApiRequest(?Request $request = null, ?int $statusCode = null, ?float $duration = null): void
+    private function writeToDatabase(array $data, string $traceId): void
     {
-        $request = $request ?? request();
-
-        $context = [
-            'method' => $request->method(),
-            'path' => $request->path(),
-            'status_code' => $statusCode,
-            'duration_ms' => $duration ? round($duration * 1000, 2) : null,
-            'ip' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'user_id' => auth()->id(),
-        ];
-
-        $logLevel = ($statusCode && $statusCode >= 400) ? 'warning' : 'info';
-        $message = ($statusCode && $statusCode >= 400)
-            ? "API request failed: {$request->method()} {$request->path()}"
-            : "API request: {$request->method()} {$request->path()}";
-
-        Log::channel('api')->{$logLevel}($message, $context);
+        DB::table('cim_sql_log')->insert([
+            'id'            => Str::orderedUuid(),
+            'request_id'    => $traceId,
+            'level'         => $data['level'],
+            'service'       => $data['service'],
+            'method'        => $data['method'],
+            'url'           => Str::limit($data['route'], 500),
+            'route'         => Str::limit($data['route'], 255),
+            'status_code'   => $data['status_code'],
+            'function_name' => $data['function_name'],
+            'logic_name'    => $data['logic_name'],
+            'parameters'    => json_encode($data['parameters'], JSON_UNESCAPED_UNICODE),
+            'response_data' => Str::limit($data['response_summary'] ?? '', 2000),
+            'fail_result'   => isset($data['fail_result']) ? Str::limit($data['fail_result'], 4000) : null,
+            'start_time'    => $data['start_time'],
+            'end_time'      => $data['end_time'],
+            'duration_ms'   => $data['duration_ms'],
+            'user_id'       => $data['user_id'],
+            'ip_address'    => $data['ip'],
+            'user_agent'    => $data['user_agent'],
+            'is_error'      => in_array($data['level'], ['error', 'critical']),
+            'message'       => Str::limit($data['response_summary'] ?? 'OK', 500),
+            'created_at'    => now(),
+            'updated_at'    => now(),
+        ]);
     }
 
     /**
-     * Log API success response
+     * Determine log level from HTTP status code.
      */
-    public function logApiSuccess(?Request $request = null, string $message = 'Success'): void
+    private function resolveLevel(int $statusCode, bool $isError): string
     {
-        $request = $request ?? request();
-
-        $context = [
-            'method' => $request->method(),
-            'path' => $request->path(),
-            'ip' => $request->ip(),
-            'user_id' => auth()->id(),
-        ];
-
-        Log::info("API Success: $message", $context);
+        if ($isError || $statusCode >= 500) return 'error';
+        if ($statusCode >= 400)             return 'warning';
+        return 'info';
     }
 
     /**
-     * Log authentication events
+     * Resolve the controller class + method from the current route.
      */
-    public function logAuthEvent(string $event, ?string $userId = null, ?array $data = []): void
+    private function resolveAction(Request $request): array
     {
-        $context = [
-            'event' => $event,
-            'user_id' => $userId ?? auth()->id(),
-            'ip' => request()?->ip(),
-            'user_agent' => request()?->userAgent(),
-            'timestamp' => now()->toISOString(),
-        ];
+        $action = $request->route()?->getActionName() ?? 'Closure';
 
-        if ($data) {
-            $context = array_merge($context, $data);
+        if (str_contains($action, '@')) {
+            [$controller, $function] = explode('@', $action);
+            return [
+                'controller' => class_basename($controller),
+                'function'   => $function,
+            ];
         }
 
-        Log::info("Auth Event: $event", $context);
-    }
-
-    /**
-     * Log database operations
-     */
-    public function logDatabaseOperation(
-        string $operation,
-        string $model,
-        ?string $id = null,
-        ?float $duration = null,
-        ?array $metadata = [],
-        bool $isError = false,
-        ?string $message = null
-    ): void {
-        $context = [
-            'operation' => $operation,
-            'model' => $model,
-            'id' => $id,
-            'duration_ms' => $duration ? round($duration * 1000, 2) : 0,
-            'user_id' => auth()->id(),
-            'timestamp' => now()->toISOString(),
+        return [
+            'controller' => 'Closure',
+            'function'   => $action,
         ];
-
-        if ($metadata) {
-            $context['metadata'] = $metadata;
-        }
-
-        Log::channel('database')->info("Database Operation: $operation on $model", $context);
-
-        // Map model name to table name if possible, or just use model name
-        $tableName = strtolower(class_basename($model)) . 's'; // Simple pluralization
-        $sqlText = sprintf('%s %s', strtoupper($operation), strtoupper($tableName));
-        if ($isError) {
-            $sqlText .= ' FAILED';
-        }
-
-        $this->logFullRequestToSqlLog(
-            $sqlText,
-            null,
-            $duration,
-            $isError,
-            $message,
-            $metadata,
-            strtoupper($operation),
-            $this->getCallerModule()
-        );
     }
 
     /**
-     * Log performance issues
+     * Extract request parameters (body + query) for logging.
      */
-    public function logPerformanceIssue(
-        string $operation,
-        string $message,
-        float $duration,
-        float $threshold,
-        array $metadata = []
-    ): void {
-        $context = [
-            'operation' => $operation,
-            'duration_ms' => round($duration * 1000, 2),
-            'threshold_ms' => round($threshold * 1000, 2),
-            'exceeded_by_ms' => round(($duration - $threshold) * 1000, 2),
-            'metadata' => $metadata,
-            'user_id' => auth()->id(),
-            'timestamp' => now()->toISOString(),
-        ];
-
-        Log::channel('performance')->warning($message, $context);
-    }
-
-    /**
-     * Log user actions (business logic)
-     */
-    public function logAction(string $action, ?object $user = null, ?array $data = []): void
-    {
-        $user = $user ?? auth()->user();
-
-        $context = [
-            'action' => $action,
-            'user_id' => $user?->id,
-            'user_email' => $user?->email,
-            'ip' => request()?->ip(),
-            'timestamp' => now()->toISOString(),
-        ];
-
-        if ($data) {
-            $context = array_merge($context, $data);
-        }
-
-        $level = in_array($action, ['deleted', 'force_deleted', 'disabled', 'locked', 'banned'])
-            ? 'warning'
-            : 'info';
-
-        Log::{$level}("User Action: $action", $context);
-    }
-
-    /**
-     * Log service errors with business context
-     */
-    public function logServiceError(
-        string $service,
-        string $method,
-        Throwable $e,
-        ?array $context = []
-    ): void {
-        $errorContext = [
-            'service' => $service,
-            'method' => $method,
-            'exception' => get_class($e),
-            'message' => $e->getMessage(),
-            'code' => $e->getCode(),
-            'file' => $e->getFile(),
-            'line' => $e->getLine(),
-            'user_id' => auth()->id(),
-            'ip' => request()?->ip(),
-            'timestamp' => now()->toISOString(),
-        ];
-
-        if ($context) {
-            $errorContext = array_merge($errorContext, $context);
-        }
-
-        Log::channel('service_errors')->error("Service Error: $service::$method", $errorContext);
-
-        // Also log to SQL log table for critical errors
-        $this->logFullRequestToSqlLog(
-            "Service error in $service::$method",
-            null,
-            null,
-            true,
-            $e->getMessage(),
-            ['error' => $e->getMessage()],
-            'ERROR',
-            $service
-        );
-    }
-
-    /**
-     * Build context for error logging
-     */
-    private function buildContext(Throwable $e, Request $request): array
+    private function extractParameters(Request $request): array
     {
         return [
-            'exception' => get_class($e),
-            'message' => $e->getMessage(),
-            'code' => $e->getCode(),
-            'file' => $e->getFile(),
-            'line' => $e->getLine(),
-            'trace' => $e->getTraceAsString(),
-            'request' => [
-                'method' => $request->method(),
-                'path' => $request->path(),
-                'ip' => $request->ip(),
-                'user_agent' => $request->userAgent(),
-                'user_id' => $request->user()?->id,
-            ],
-            'query' => $request->query(),
-            'input' => $this->sanitizeInput($request->input()),
+            'query' => $request->query() ?: [],
+            'body'  => $request->all() ?: [],
         ];
     }
 
     /**
-     * Sanitize sensitive input data
+     * Extract a short summary from the response body.
      */
-    private function sanitizeInput(array $input): array
+    private function extractResponseSummary(mixed $response): string
     {
-        return SecurityUtil::redact($input);
-    }
-
-    /**
-     * Sanitize SQL parameters
-     */
-    private function sanitizeParams(array $params): array
-    {
-        return SecurityUtil::redact($params);
-    }
-
-    /**
-     * Detect SQL operation type from query
-     */
-    private function detectOperation(string $sql): string
-    {
-        $sql = strtoupper(trim($sql));
-
-        if (str_starts_with($sql, 'SELECT')) return 'SELECT';
-        if (str_starts_with($sql, 'INSERT')) return 'INSERT';
-        if (str_starts_with($sql, 'UPDATE')) return 'UPDATE';
-        if (str_starts_with($sql, 'DELETE')) return 'DELETE';
-        if (str_starts_with($sql, 'CREATE')) return 'CREATE';
-        if (str_starts_with($sql, 'ALTER')) return 'ALTER';
-        if (str_starts_with($sql, 'DROP')) return 'DROP';
-
-        return 'UNKNOWN';
-    }
-
-    /**
-     * Get the module/class that called the logger
-     */
-    private function getCallerModule(): ?string
-    {
-        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10);
-
-        foreach ($trace as $frame) {
-            if (isset($frame['class']) && !in_array($frame['class'], [self::class, 'App\Http\Middleware\LogHttpRequestsMiddleware', 'App\Http\Middleware\LogSqlQueriesMiddleware'])) {
-                return $frame['class'];
+        try {
+            if (!method_exists($response, 'getContent')) {
+                return 'no-content';
             }
-        }
 
-        return 'unknown';
+            $content = $response->getContent();
+            $decoded = json_decode($content, true);
+
+            if (is_array($decoded)) {
+                return $decoded['message'] ?? Str::limit($content, 200);
+            }
+
+            return Str::limit($content, 200);
+        } catch (Throwable) {
+            return 'unreadable';
+        }
     }
 
+    /**
+     * Recursively redact sensitive fields.
+     */
+    private function sanitize(array $data): array
+    {
+        return SecurityUtil::redact($data);
+    }
 }

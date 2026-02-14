@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Services\LoggerService;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Throwable;
 
 class LogHttpRequestsMiddleware
@@ -13,21 +14,46 @@ class LogHttpRequestsMiddleware
 
     public function handle(Request $request, Closure $next)
     {
-        $start = microtime(true);
+        $startTime = Carbon::now();
+        $start     = microtime(true);
 
         try {
             $response = $next($request);
 
-            // Log successful request with status and duration
-            $duration = microtime(true) - $start;
-            $status = method_exists($response, 'getStatusCode') ? $response->getStatusCode() : null;
-            $this->logger->logFullRequestToSqlLog($request, $status, $duration, false, null);
+            $endTime    = Carbon::now();
+            $durationMs = (microtime(true) - $start) * 1000;
+            $statusCode = method_exists($response, 'getStatusCode') ? $response->getStatusCode() : 200;
+
+            $this->logger->logRequest(
+                request:    $request,
+                response:   $response,
+                startTime:  $startTime->toIso8601String(),
+                endTime:    $endTime->toIso8601String(),
+                durationMs: $durationMs,
+                isError:    $statusCode >= 500,
+            );
 
             return $response;
         } catch (Throwable $e) {
-            // Log failed request and rethrow for default handler
-            $duration = microtime(true) - $start;
-            $this->logger->logFullRequestToSqlLog($request, 500, $duration, true, $e->getMessage());
+            $endTime    = Carbon::now();
+            $durationMs = (microtime(true) - $start) * 1000;
+
+            // Build a minimal error response for logging purposes
+            $errorResponse = response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+
+            $this->logger->logRequest(
+                request:    $request,
+                response:   $errorResponse,
+                startTime:  $startTime->toIso8601String(),
+                endTime:    $endTime->toIso8601String(),
+                durationMs: $durationMs,
+                isError:    true,
+                failResult: $e->getMessage() . "\n" . $e->getTraceAsString(),
+            );
+
             throw $e;
         }
     }

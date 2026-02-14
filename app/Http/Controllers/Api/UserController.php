@@ -6,12 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\SystemConsoles\User\StoreUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
-use App\Services\LoggerService;
 use App\Services\UserService;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class UserController extends Controller
 {
@@ -24,11 +25,8 @@ class UserController extends Controller
      * )
      */
     public function __construct(
-        private UserService   $userService,
-        private LoggerService $logger
-    )
-    {
-    }
+        private UserService $userService,
+    ) {}
 
     /**
      * List users
@@ -54,30 +52,18 @@ class UserController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $start = microtime(true);
-        $perPage = $request->query('per_page', 15);
-        $page = $request->query('page', 1);
-        $search = $request->query('search');
-
         try {
+            $perPage = (int) $request->query('per_page', 15);
+            $page    = (int) $request->query('page', 1);
+            $search  = $request->query('search');
+
             $users = $search
                 ? $this->userService->searchUsers($search, $page, $perPage)
                 : $this->userService->getAllUsers($page, $perPage);
 
-            $response = $this->successResponse(
-                UserResource::collection($users),
-                'Danh sách người dùng trong hệ thống'
-            );
-
-            $duration = microtime(true) - $start;
-            $this->logger->logApiRequest($request, $response->getStatusCode(), $duration);
-
-            return $response;
-        } catch (\Exception $e) {
-            $this->logger->logApiError($e, $request);
-            return $this->serverErrorResponse(
-                $e->getMessage()
-            );
+            return $this->paginatedResponse($users, 'User list retrieved successfully.');
+        } catch (Throwable $e) {
+            return $this->serverErrorResponse($e->getMessage(), $e);
         }
     }
 
@@ -89,19 +75,19 @@ class UserController extends Controller
      *   path="/api/users",
      *   tags={"System","Users"},
      *   summary="Create user",
-     *   description="Tạo mới người dùng. Nếu cần upload ảnh đại diện (avatar), sử dụng content-type multipart/form-data.",
+     *   description="Create a new user. To upload an avatar, use multipart/form-data.",
      *   @OA\RequestBody(
      *     required=true,
      *     @OA\JsonContent(
      *       required={"name","email","password","password_confirmation"},
-     *       @OA\Property(property="name", type="string", maxLength=255, example="Nguyễn Văn A", description="Tên người dùng, tối đa 255 ký tự"),
-     *       @OA\Property(property="email", type="string", format="email", maxLength=255, example="user@example.com", description="Email duy nhất, định dạng hợp lệ"),
-     *       @OA\Property(property="password", type="string", format="password", minLength=8, example="P@ssw0rd!", description="Mật khẩu, tối thiểu 8 ký tự"),
-     *       @OA\Property(property="password_confirmation", type="string", format="password", minLength=8, example="P@ssw0rd!", description="Xác nhận mật khẩu, phải khớp với password"),
-     *       @OA\Property(property="phone", type="string", maxLength=20, example="+84901234567", description="Số điện thoại duy nhất, tối đa 20 ký tự"),
-     *       @OA\Property(property="date_of_birth", type="string", format="date", example="1990-01-01", description="Ngày sinh, định dạng YYYY-MM-DD"),
-     *       @OA\Property(property="gender", type="string", example="male", description="Giới tính: male, female, other"),
-     *       @OA\Property(property="enabled", type="boolean", example=true, description="Trạng thái kích hoạt (true/false)")
+     *       @OA\Property(property="name", type="string", maxLength=255, example="John Doe", description="User name, max 255 chars"),
+     *       @OA\Property(property="email", type="string", format="email", maxLength=255, example="user@example.com", description="Unique email"),
+     *       @OA\Property(property="password", type="string", format="password", minLength=8, example="P@ssw0rd!", description="Password, min 8 chars"),
+     *       @OA\Property(property="password_confirmation", type="string", format="password", minLength=8, example="P@ssw0rd!", description="Password confirmation, must match password"),
+     *       @OA\Property(property="phone", type="string", maxLength=20, example="+84901234567", description="Unique phone number, max 20 chars"),
+     *       @OA\Property(property="date_of_birth", type="string", format="date", example="1990-01-01", description="Date of birth, YYYY-MM-DD"),
+     *       @OA\Property(property="gender", type="string", example="male", description="Gender: male, female, other"),
+     *       @OA\Property(property="enabled", type="boolean", example=true, description="Enabled status")
      *     )
      *   ),
      *   @OA\Response(
@@ -123,15 +109,12 @@ class UserController extends Controller
      */
     public function store(StoreUserRequest $request)
     {
-        $corrId = (string)Str::orderedUuid();
-
         try {
             $data = $request->validated();
             $user = $this->userService->createUser($data);
 
-            $response = $this->setCorrelationId($corrId)
-                ->withLinks([
-                    'self' => route('users.show', $user->code ?? $user->id),
+            return $this->withLinks([
+                    'self'   => route('users.show', $user->code ?? $user->id),
                     'update' => route('users.update', $user->id),
                     'delete' => route('users.destroy', $user->id),
                 ])
@@ -140,16 +123,10 @@ class UserController extends Controller
                     'User created successfully',
                     route('users.show', $user->code ?? $user->id)
                 );
-
-            return $response;
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return $this->validationErrorResponse(
-                $e->errors()
-            );
-        } catch (\Throwable $e) {
-            $this->logger->logApiError($e, $request);
-            return $this->setCorrelationId($corrId)
-                ->serverErrorResponse('Failed to create user', $e);
+        } catch (ValidationException $e) {
+            return $this->validationErrorResponse($e->errors());
+        } catch (Throwable $e) {
+            return $this->serverErrorResponse('Failed to create user', $e);
         }
     }
 
@@ -281,7 +258,7 @@ class UserController extends Controller
     {
         $stats = [
             'total_users' => User::count(),
-            'active_users' => User::where('is_active', true)->count(),
+            'active_users' => User::where('enable', true)->count(),
             'new_today' => User::whereDate('created_at', today())->count(),
         ];
 
@@ -359,12 +336,8 @@ class UserController extends Controller
                 new UserResource($user),
                 'User retrieved successfully'
             );
-        } catch (\Throwable $e) {
-            $this->logger->logApiError($e, request());
-
-            return $this->serverErrorResponse(
-                $e->getMessage()
-            );
+        } catch (Throwable $e) {
+            return $this->serverErrorResponse($e->getMessage(), $e);
         }
     }
 
@@ -660,168 +633,4 @@ class UserController extends Controller
 }
 
 
-/**
- * @OA\Schema(
- *   schema="ApiResponse",
- *   type="object",
- *   required={"success","message","code","timestamp"},
- *   @OA\Property(property="success", type="boolean", example=true),
- *   @OA\Property(property="message", type="string", example="Operation successful"),
- *   @OA\Property(property="code", type="integer", example=200),
- *   @OA\Property(property="data"),
- *   @OA\Property(property="errors", type="object", nullable=true, example=null),
- *   @OA\Property(property="correlation_id", type="string", nullable=true, example="01JDN3X6H1V5C0Y8K9P2R4M7TQ"),
- *   @OA\Property(property="links", type="object", nullable=true,
- *     @OA\Property(property="self", type="string", example="https://api.example.com/api/users/123"),
- *     @OA\Property(property="update", type="string", example="https://api.example.com/api/users/123"),
- *     @OA\Property(property="delete", type="string", example="https://api.example.com/api/users/123")
- *   ),
- *   @OA\Property(property="meta", type="object", nullable=true),
- *   @OA\Property(property="debug", type="object", nullable=true),
- *   @OA\Property(property="timestamp", type="string", format="date-time"),
- *   @OA\Property(property="request_id", type="string", nullable=true)
- * )
- *
- * @OA\Schema(
- *   schema="User",
- *   type="object",
- *   @OA\Property(property="id", type="integer", example=123),
- *   @OA\Property(property="code", type="string", example="USR-2024-000123"),
- *   @OA\Property(property="name", type="string", example="Nguyen Van A"),
- *   @OA\Property(property="email", type="string", example="a.nguyen@example.com"),
- *   @OA\Property(property="is_active", type="boolean", example=true),
- *   @OA\Property(property="created_at", type="string", format="date-time"),
- *   @OA\Property(property="updated_at", type="string", format="date-time")
- * )
- *
- * @OA\Schema(
- *   schema="UserResponse",
- *   allOf={
- *     @OA\Schema(ref="#/components/schemas/ApiResponse"),
- *     @OA\Schema(
- *       @OA\Property(property="data", ref="#/components/schemas/User")
- *     )
- *   }
- * )
- *
- * @OA\Schema(
- *   schema="UserListResponse",
- *   allOf={
- *     @OA\Schema(ref="#/components/schemas/ApiResponse"),
- *     @OA\Schema(
- *       @OA\Property(
- *         property="data",
- *         type="array",
- *         @OA\Items(ref="#/components/schemas/User")
- *       ),
- *       @OA\Property(property="meta", type="object",
- *         @OA\Property(property="current_page", type="integer", example=1),
- *         @OA\Property(property="per_page", type="integer", example=15),
- *         @OA\Property(property="total", type="integer", example=150)
- *       )
- *     )
- *   }
- * )
- *
- * @OA\Schema(
- *   schema="ErrorResponse",
- *   allOf={
- *     @OA\Schema(ref="#/components/schemas/ApiResponse"),
- *     @OA\Schema(
- *       @OA\Property(property="success", type="boolean", example=false),
- *       @OA\Property(property="message", type="string", example="Validation failed"),
- *       @OA\Property(property="code", type="integer", example=422),
- *       @OA\Property(property="errors", type="object",
- *         @OA\Property(property="email", type="array",
- *           @OA\Items(type="string", example="The email has already been taken.")
- *         )
- *       )
- *     )
- *   }
- * )
- *
- * @OA\Tag(
- *   name="System",
- *   description="System module APIs (User management, configuration, etc.)"
- * )
- */
 
-
-/**
- * @OA\Schema(
- *   schema="UserCollectionResponse",
- *   allOf={
- *     @OA\Schema(ref="#/components/schemas/ApiResponse"),
- *     @OA\Schema(
- *       @OA\Property(
- *         property="data",
- *         type="array",
- *         @OA\Items(ref="#/components/schemas/User")
- *       )
- *     )
- *   }
- * )
- *
- * @OA\Schema(
- *   schema="BulkOperationResponse",
- *   allOf={
- *     @OA\Schema(ref="#/components/schemas/ApiResponse"),
- *     @OA\Schema(
- *       @OA\Property(property="operation", type="string", example="delete"),
- *       @OA\Property(property="successful", type="integer", example=3),
- *       @OA\Property(property="failed", type="integer", example=1),
- *       @OA\Property(
- *         property="data",
- *         type="array",
- *         @OA\Items(type="object",
- *           @OA\Property(property="id", type="integer", example=10),
- *           @OA\Property(property="status", type="string", example="success"),
- *           @OA\Property(property="error", type="string", nullable=true, example=null)
- *         )
- *       )
- *     )
- *   }
- * )
- *
- * @OA\Schema(
- *   schema="DeleteResponse",
- *   allOf={
- *     @OA\Schema(ref="#/components/schemas/ApiResponse"),
- *     @OA\Schema(
- *       @OA\Property(property="data", type="object",
- *         @OA\Property(property="deleted", type="boolean", example=true)
- *       )
- *     )
- *   }
- * )
- *
- * @OA\Schema(
- *   schema="UserStatsResponse",
- *   allOf={
- *     @OA\Schema(ref="#/components/schemas/ApiResponse"),
- *     @OA\Schema(
- *       @OA\Property(property="data", type="object",
- *         @OA\Property(property="total_users", type="integer", example=120),
- *         @OA\Property(property="active_users", type="integer", example=110),
- *         @OA\Property(property="new_today", type="integer", example=5)
- *       )
- *     )
- *   }
- * )
- *
- * @OA\Schema(
- *   schema="CurrentUserResponse",
- *   allOf={
- *     @OA\Schema(ref="#/components/schemas/ApiResponse"),
- *     @OA\Schema(
- *       @OA\Property(
- *         property="data",
- *         nullable=true,
- *         oneOf={
- *           @OA\Schema(ref="#/components/schemas/User")
- *         }
- *       )
- *     )
- *   }
- * )
- */

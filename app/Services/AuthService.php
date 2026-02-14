@@ -8,22 +8,19 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Auth\Events\Lockout;
-use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\ValidationException;
-use Throwable;
 
 class AuthService
 {
-    public function __construct(
-        private LoggerService $logger
-    ) {}
-
+    /**
+     * Authenticate user and return token.
+     */
     public function login(array $credentials): array
     {
         $loginField = !empty($credentials['email']) ? 'email' : 'employee_id';
-        $identifier  = $credentials[$loginField] ?? null;
-        $password    = $credentials['password'] ?? null;
-        $remember    = (bool) ($credentials['remember'] ?? false);
+        $identifier = $credentials[$loginField] ?? null;
+        $password   = $credentials['password'] ?? null;
+        $remember   = (bool) ($credentials['remember'] ?? false);
 
         if (!$identifier || !$password) {
             throw ValidationException::withMessages([
@@ -35,59 +32,56 @@ class AuthService
 
         $this->ensureIsNotRateLimited($throttleKey);
 
-        try {
-            $attemptCredentials = [
-                $loginField => $identifier,
-                'password'  => $password,
-            ];
+        $attemptCredentials = [
+            $loginField => $identifier,
+            'password'  => $password,
+        ];
 
-            if (!Auth::attempt($attemptCredentials, $remember)) {
-                RateLimiter::hit($throttleKey);
+        if (!Auth::attempt($attemptCredentials, $remember)) {
+            RateLimiter::hit($throttleKey);
 
-                throw ValidationException::withMessages([
-                    'password' => ['Invalid credentials.'],
-                ]);
-            }
-
-            RateLimiter::clear($throttleKey);
-
-            $user = Auth::user();
-
-            $token = null;
-            if (method_exists($user, 'createToken')) {
-                $token = $user->createToken('auth_token')->plainTextToken;
-            }
-
-            return [
-                'user'  => $user,
-                'token' => $token,
-            ];
-        } catch (Throwable $e) {
-            throw $e;
+            throw ValidationException::withMessages([
+                'password' => ['Invalid credentials.'],
+            ]);
         }
+
+        RateLimiter::clear($throttleKey);
+
+        $user  = Auth::user();
+        $token = null;
+
+        if (method_exists($user, 'createToken')) {
+            $token = $user->createToken('auth_token')->plainTextToken;
+        }
+
+        return [
+            'user'  => $user,
+            'token' => $token,
+        ];
     }
 
+    /**
+     * Logout the current user.
+     */
     public function logout(): void
     {
         $user = auth()->user();
 
         if ($user && method_exists($user, 'currentAccessToken') && $user->currentAccessToken()) {
+            // Sanctum token-based logout
             $user->currentAccessToken()->delete();
-
-            $this->logger->info('auth.logout.token_revoked', [
-                'user_id' => $user->id,
-                'ip' => request()->ip(),
-            ]);
         } else {
+            // Session-based logout
             Auth::logout();
-            request()->session()->invalidate();
-            request()->session()->regenerateToken();
 
-            $this->logger->info('auth.logout.session', [
-                'ip' => request()->ip(),
-            ]);
+            if (request()->hasSession()) {
+                request()->session()->invalidate();
+                request()->session()->regenerateToken();
+            }
         }
     }
+
+    /* ─── Private helpers ─── */
 
     protected function throttleKey(string $field, string $identifier, ?string $ip): string
     {

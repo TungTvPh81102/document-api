@@ -41,38 +41,38 @@ class StoreUserRequest extends BaseFormRequest
     {
 
         return [
-            'name.required' => 'Tên người dùng không được để trống',
-            'name.string' => 'Tên người dùng phải là chuỗi ký tự',
-            'name.max' => 'Tên người dùng không được vượt quá 255 ký tự',
+            'name.required' => 'Name is required.',
+            'name.string' => 'Name must be a string.',
+            'name.max' => 'Name must not exceed 255 characters.',
 
-            'email.required' => 'Email không được để trống',
-            'email.email' => 'Email không hợp lệ',
-            'email.unique' => 'Email đã được sử dụng',
-            'email.max' => 'Email không được vượt quá 255 ký tự',
+            'email.required' => 'Email is required.',
+            'email.email' => 'Email format is invalid.',
+            'email.unique' => 'This email is already in use.',
+            'email.max' => 'Email must not exceed 255 characters.',
 
-            'password.required' => 'Mật khẩu không được để trống',
-            'password.string' => 'Mật khẩu phải là chuỗi ký tự',
-            'password.min' => 'Mật khẩu phải ít nhất 8 ký tự',
-            'password.confirmed' => 'Xác nhận mật khẩu không khớp',
+            'password.required' => 'Password is required.',
+            'password.string' => 'Password must be a string.',
+            'password.min' => 'Password must be at least 8 characters.',
+            'password.confirmed' => 'Password confirmation does not match.',
 
-            'password_confirmation.required' => 'Vui lòng nhập xác nhận mật khẩu',
-            'password_confirmation.string' => 'Xác nhận mật khẩu phải là chuỗi ký tự',
-            'password_confirmation.min' => 'Xác nhận mật khẩu phải ít nhất 8 ký tự',
+            'password_confirmation.required' => 'Please confirm your password.',
+            'password_confirmation.string' => 'Password confirmation must be a string.',
+            'password_confirmation.min' => 'Password confirmation must be at least 8 characters.',
 
-            'phone.string' => 'Số điện thoại phải là chuỗi ký tự',
-            'phone.max' => 'Số điện thoại không được vượt quá 20 ký tự',
-            'phone.unique' => 'Số điện thoại đã được sử dụng',
+            'phone.string' => 'Phone number must be a string.',
+            'phone.max' => 'Phone number must not exceed 20 characters.',
+            'phone.unique' => 'This phone number is already in use.',
 
-            'date_of_birth.date' => 'Ngày sinh phải là định dạng ngày hợp lệ (YYYY-MM-DD)',
+            'date_of_birth.date' => 'Date of birth must be a valid date format (YYYY-MM-DD).',
 
-            'gender.in' => 'Giới tính phải là một trong: male, female, other',
+            'gender.in' => 'Gender must be one of: male, female, other.',
 
-            'avatar.file' => 'Tệp ảnh đại diện phải là một tệp hợp lệ',
-            'avatar.image' => 'Ảnh đại diện phải là tệp hình ảnh',
-            'avatar.mimes' => 'Ảnh đại diện chỉ chấp nhận các định dạng: jpeg, png, jpg, gif, svg',
-            'avatar.max' => 'Ảnh đại diện vượt quá dung lượng cho phép (tối đa 2MB)',
+            'avatar.file' => 'Avatar file must be a valid file.',
+            'avatar.image' => 'Avatar must be an image.',
+            'avatar.mimes' => 'Avatar accepted formats: jpeg, png, jpg, gif, svg.',
+            'avatar.max' => 'Avatar exceeds allowed capacity (max 2MB).',
 
-            'enabled.boolean' => 'Trạng thái kích hoạt phải là kiểu boolean (true/false)',
+            'enabled.boolean' => 'Enable status must be a boolean (true/false).',
         ];
     }
 }
