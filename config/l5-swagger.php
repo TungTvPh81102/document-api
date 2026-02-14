@@ -13,6 +13,14 @@ return [
                  * Route for accessing api documentation interface
                  */
                 'api' => 'api/documentation',
+                /*
+                 * Route for accessing the generated docs file (JSON/YAML)
+                 */
+                'docs' => 'api/docs',
+                /*
+                 * Route for Oauth2 authentication callback for this documentation
+                 */
+                'oauth2_callback' => 'api/oauth2-callback',
             ],
             'paths' => [
                 /*
@@ -59,6 +67,10 @@ return [
                  * Route for accessing api documentation interface
                  */
                 'api' => 'api/system-docs',
+                /*
+                 * Route for Oauth2 authentication callback for system docs
+                 */
+                'oauth2_callback' => 'api/system-oauth2-callback',
             ],
             'paths' => [
                 /*

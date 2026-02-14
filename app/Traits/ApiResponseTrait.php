@@ -190,7 +190,6 @@ trait ApiResponseTrait
         mixed $errors = null,
         ?\Throwable $exception = null
     ): JsonResponse {
-        // Log exception if provided
         if ($exception) {
             Log::error("API Error: {$message}", [
                 'exception' => get_class($exception),
@@ -430,7 +429,7 @@ trait ApiResponseTrait
         string $message = 'Success'
     ): JsonResponse {
         $items = $collection instanceof Collection ? $collection->all() : $collection;
-        
+
         $this->withMeta([
             'count' => count($items),
         ]);
@@ -481,7 +480,7 @@ trait ApiResponseTrait
         }
 
         $message = "Bulk {$operation} completed: {$successful} successful, {$failed} failed";
-        
+
         return $this->successResponse($data, $message);
     }
 
@@ -509,7 +508,7 @@ trait ApiResponseTrait
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('X-Frame-Options', 'DENY');
         $response->headers->set('X-XSS-Protection', '1; mode=block');
-        
+
         // Add correlation ID if exists
         if ($this->correlationId) {
             $response->headers->set('X-Correlation-ID', $this->correlationId);
@@ -546,7 +545,7 @@ trait ApiResponseTrait
     ): JsonResponse {
         $response = $this->successResponse($data, $message, Response::HTTP_PARTIAL_CONTENT);
         $response->header('Content-Range', "items {$from}-{$to}/{$total}");
-        
+
         $this->withMeta([
             'range' => [
                 'from' => $from,

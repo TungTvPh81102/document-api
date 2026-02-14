@@ -1,4 +1,4 @@
-<?php 
+<?php
 
 namespace App\Models;
 
@@ -12,6 +12,12 @@ class CimSqlLog extends Model
     protected $table = 'cim_sql_log';
 
     protected $fillable = [
+        'request_id',
+        'method',
+        'url',
+        'status',
+        'payload',
+        'response_data',
         'sql_text',
         'sql_params',
         'operation',
@@ -22,7 +28,7 @@ class CimSqlLog extends Model
         'ip_address',
         'user_agent',
         'is_error',
-        'error_message',
+        'message'
     ];
 
     protected $casts = [

@@ -4,17 +4,21 @@ namespace App\Services;
 
 use App\Models\User;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 class UserService
 {
-    public function __construct(private LoggerService $logger) {}
+    public function __construct(private LoggerService $logger)
+    {
+    }
 
     public function getAllUsers(int $page = 1, int $perPage = 15): LengthAwarePaginator
     {
         $start = microtime(true);
-        $corrId = (string) Str::orderedUuid();
+        $corrId = (string)Str::orderedUuid();
 
         try {
             $paginator = User::query()
@@ -35,8 +39,8 @@ class UserService
                 'GET',
                 $e,
                 [
-                    'page'        => $page,
-                    'per_page'    => $perPage,
+                    'page' => $page,
+                    'per_page' => $perPage,
                     'duration_ms' => $durationMs,
                     'correlation_id' => $corrId,
                 ]
@@ -75,44 +79,18 @@ class UserService
             $data['password'] = Hash::make($data['password']);
             $data['email_verified_at'] = now();
             $data['enable'] = true;
+            $data['code'] = $this->makeUserCode(now() ?? Str::random(20));
 
-            $user = User::create($data);
-
+            $user = User::query()->create($data);
             $duration = microtime(true) - $start;
-
-            $this->logger->logDatabaseOperation('create', 'User', $user->id, $duration);
-            $this->logger->logUserAction('created', $user, [
-                'email' => $user->email,
-                'name' => $user->name,
-                'duration_ms' => round($duration * 1000, 2),
-            ]);
-
-            $this->logger->logSqlQuery(
-                "INSERT INTO users",
-                $data,
-                'INSERT',
-                $duration,
-                self::class
-            );
+            $this->logger
+                ->logDatabaseOperation('INSERT', 'User', $user->id, $duration, $data);
 
             return $user;
         } catch (\Throwable $e) {
-            $this->logger->logSqlQuery(
-                "INSERT INTO users FAILED",
-                $data,
-                'INSERT',
-                $duration,
-                self::class,
-                true,
-                $e->getMessage()
-            );
-
             $duration = microtime(true) - $start;
-            \Log::error('createUser failed', [
-                'exception' => $e->getMessage(),
-                'email' => $data['email'] ?? null,
-                'duration_ms' => round($duration * 1000, 2),
-            ]);
+            $this->logger->logServiceError(self::class, __FUNCTION__, $e,
+                ['data' => $data, 'duration_ms' => round($duration * 1000, 2)]);
             throw $e;
         }
     }
@@ -127,7 +105,6 @@ class UserService
         try {
             $originalData = $user->only(array_keys($data));
 
-            // Hash password if provided
             if (isset($data['password'])) {
                 $data['password'] = Hash::make($data['password']);
             }
@@ -136,20 +113,22 @@ class UserService
 
             $duration = microtime(true) - $start;
 
-            $this->logger->logDatabaseOperation('update', 'User', $user->id, $duration);
-            $this->logger->logUserAction('updated', $user, [
+            $this->logger->logDatabaseOperation('UPDATE', 'User', $user->id, $duration, [
                 'changes' => $this->getChanges($originalData, $data),
-                'duration_ms' => round($duration * 1000, 2),
             ]);
 
             return $user;
         } catch (\Throwable $e) {
             $duration = microtime(true) - $start;
-            \Log::error('updateUser failed', [
-                'exception' => $e->getMessage(),
-                'user_id' => $user->id,
-                'duration_ms' => round($duration * 1000, 2),
-            ]);
+
+            $this->logger->logDatabaseOperation('UPDATE', 'User', $user->id, $duration, $data, true, $e->getMessage());
+            $this->logger->logServiceError(
+                self::class,
+                __FUNCTION__,
+                $e,
+                $data
+            );
+
             throw $e;
         }
     }
@@ -165,7 +144,7 @@ class UserService
             $result = $user->delete();
             $duration = microtime(true) - $start;
 
-            $this->logger->logDatabaseOperation('delete', 'User', $user->id, $duration);
+            $this->logger->logDatabaseOperation('DELETE', 'User', $user->id, $duration);
             $this->logger->logUserAction('deleted', $user, [
                 'type' => 'soft_delete',
                 'duration_ms' => round($duration * 1000, 2),
@@ -174,6 +153,9 @@ class UserService
             return $result;
         } catch (\Throwable $e) {
             $duration = microtime(true) - $start;
+
+            $this->logger->logDatabaseOperation('DELETE', 'User', $user->id, $duration, [], true, $e->getMessage());
+
             \Log::error('deleteUser failed', [
                 'exception' => $e->getMessage(),
                 'user_id' => $user->id,
@@ -188,7 +170,17 @@ class UserService
      */
     public function restoreUser(User $user): bool
     {
-        return $user->restore();
+        $start = microtime(true);
+        try {
+            $result = $user->restore();
+            $duration = microtime(true) - $start;
+            $this->logger->logDatabaseOperation('RESTORE', 'User', $user->id, $duration);
+            return $result;
+        } catch (\Throwable $e) {
+            $duration = microtime(true) - $start;
+            $this->logger->logDatabaseOperation('RESTORE', 'User', $user->id, $duration, [], true, $e->getMessage());
+            throw $e;
+        }
     }
 
     /**
@@ -196,7 +188,17 @@ class UserService
      */
     public function forceDeleteUser(User $user): bool
     {
-        return $user->forceDelete();
+        $start = microtime(true);
+        try {
+            $result = $user->forceDelete();
+            $duration = microtime(true) - $start;
+            $this->logger->logDatabaseOperation('FORCE_DELETE', 'User', $user->id, $duration);
+            return $result;
+        } catch (\Throwable $e) {
+            $duration = microtime(true) - $start;
+            $this->logger->logDatabaseOperation('FORCE_DELETE', 'User', $user->id, $duration, [], true, $e->getMessage());
+            throw $e;
+        }
     }
 
     /**
@@ -204,12 +206,20 @@ class UserService
      */
     public function lockUser(User $user, int $lockDuration = 3600): User
     {
-        $user->update([
-            'locked_at' => now()->addSeconds($lockDuration),
-            'lock_count' => ($user->lock_count ?? 0) + 1,
-        ]);
-
-        return $user;
+        $start = microtime(true);
+        try {
+            $user->update([
+                'locked_at' => now()->addSeconds($lockDuration),
+                'lock_count' => ($user->lock_count ?? 0) + 1,
+            ]);
+            $duration = microtime(true) - $start;
+            $this->logger->logDatabaseOperation('LOCK', 'User', $user->id, $duration, ['duration' => $lockDuration]);
+            return $user;
+        } catch (\Throwable $e) {
+            $duration = microtime(true) - $start;
+            $this->logger->logDatabaseOperation('LOCK', 'User', $user->id, $duration, ['duration' => $lockDuration], true, $e->getMessage());
+            throw $e;
+        }
     }
 
     /**
@@ -217,12 +227,20 @@ class UserService
      */
     public function unlockUser(User $user): User
     {
-        $user->update([
-            'locked_at' => null,
-            'lock_count' => 0,
-        ]);
-
-        return $user;
+        $start = microtime(true);
+        try {
+            $user->update([
+                'locked_at' => null,
+                'lock_count' => 0,
+            ]);
+            $duration = microtime(true) - $start;
+            $this->logger->logDatabaseOperation('UNLOCK', 'User', $user->id, $duration);
+            return $user;
+        } catch (\Throwable $e) {
+            $duration = microtime(true) - $start;
+            $this->logger->logDatabaseOperation('UNLOCK', 'User', $user->id, $duration, [], true, $e->getMessage());
+            throw $e;
+        }
     }
 
     /**
@@ -238,8 +256,17 @@ class UserService
      */
     public function enableUser(User $user): User
     {
-        $user->update(['enable' => true]);
-        return $user;
+        $start = microtime(true);
+        try {
+            $user->update(['enable' => true]);
+            $duration = microtime(true) - $start;
+            $this->logger->logDatabaseOperation('ENABLE', 'User', $user->id, $duration);
+            return $user;
+        } catch (\Throwable $e) {
+            $duration = microtime(true) - $start;
+            $this->logger->logDatabaseOperation('ENABLE', 'User', $user->id, $duration, [], true, $e->getMessage());
+            throw $e;
+        }
     }
 
     /**
@@ -247,8 +274,17 @@ class UserService
      */
     public function disableUser(User $user): User
     {
-        $user->update(['enable' => false]);
-        return $user;
+        $start = microtime(true);
+        try {
+            $user->update(['enable' => false]);
+            $duration = microtime(true) - $start;
+            $this->logger->logDatabaseOperation('DISABLE', 'User', $user->id, $duration);
+            return $user;
+        } catch (\Throwable $e) {
+            $duration = microtime(true) - $start;
+            $this->logger->logDatabaseOperation('DISABLE', 'User', $user->id, $duration, [], true, $e->getMessage());
+            throw $e;
+        }
     }
 
     /**
@@ -268,7 +304,7 @@ class UserService
 
             $duration = microtime(true) - $start;
 
-            $this->logger->logDatabaseOperation('search', 'User', null, $duration);
+            $this->logger->logDatabaseOperation('SEARCH', 'User', null, $duration);
             $this->logger->logUserAction('searched', null, [
                 'query' => $query,
                 'page' => $page,
@@ -308,7 +344,7 @@ class UserService
 
             $duration = microtime(true) - $start;
 
-            $this->logger->logDatabaseOperation('statistics', 'User', null, $duration);
+            $this->logger->logDatabaseOperation('STATISTICS', 'User', null, $duration);
             $this->logger->logUserAction('statistics_retrieved', null, [
                 'duration_ms' => round($duration * 1000, 2),
                 'stats' => $stats,
@@ -342,5 +378,62 @@ class UserService
             }
         }
         return $changes;
+    }
+
+
+    private function makeUserCode(?string $incomingCode): string
+    {
+        $base = Carbon::now()->format('YmdHis');
+        $maxLen = 20;
+
+        if (!empty($incomingCode)) {
+            $normalized = preg_replace('/\D+/', '', $incomingCode);
+            if (empty($normalized)) {
+                $normalized = $base;
+            }
+            $code = substr($normalized, 0, $maxLen);
+            if (strlen($code) < 14 || !str_starts_with($code, $base)) {
+                $code = $base;
+            }
+        } else {
+            $code = $base;
+        }
+
+        if (strlen($code) < $maxLen) {
+            $need = $maxLen - strlen($code);
+            $code .= $this->randomDigits($need);
+        }
+
+        $tries = 0;
+        while ($this->codeExists($code) && $tries < 5) {
+            $suffixLen = max(1, min(6, $maxLen - 14)); // phần suffix tối đa 6
+            $code = $base . $this->randomDigits($suffixLen);
+            $tries++;
+        }
+
+        if ($this->codeExists($code)) {
+            $remaining = $maxLen - strlen($code);
+            if ($remaining > 0) {
+                $code .= $this->randomDigits($remaining);
+            } else {
+                $code = substr($code, 0, $maxLen - 2) . $this->randomDigits(2);
+            }
+        }
+
+        return $code;
+    }
+
+    private function randomDigits(int $length): string
+    {
+        $digits = '';
+        for ($i = 0; $i < $length; $i++) {
+            $digits .= random_int(0, 9);
+        }
+        return $digits;
+    }
+
+    private function codeExists(string $code): bool
+    {
+        return DB::table('users')->where('code', $code)->exists();
     }
 }
