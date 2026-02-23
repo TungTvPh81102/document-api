@@ -131,5 +131,53 @@ use OpenApi\Annotations as OA;
  *     )
  *   }
  * )
+ *
+ * @OA\Schema(
+ *   schema="ServiceCategory",
+ *   type="object",
+ *   @OA\Property(property="id", type="integer", example=1),
+ *   @OA\Property(property="code", type="string", example="IT"),
+ *   @OA\Property(property="name", type="string", example="IT Services"),
+ *   @OA\Property(property="is_active", type="boolean", example=true)
+ * )
+ *
+ * @OA\Schema(
+ *   schema="Service",
+ *   type="object",
+ *   @OA\Property(property="id", type="integer", example=1),
+ *   @OA\Property(property="svc_code", type="string", example="S20260212002"),
+ *   @OA\Property(property="title", type="string", example="WiMES System Upgrade"),
+ *   @OA\Property(property="status", type="string", example="active"),
+ *   @OA\Property(property="current_form", type="object",
+ *     @OA\Property(property="version_no", type="integer", example=1),
+ *     @OA\Property(property="fields", type="array", @OA\Items(ref="#/components/schemas/FormField"))
+ *   )
+ * )
+ *
+ * @OA\Schema(
+ *   schema="FormField",
+ *   type="object",
+ *   @OA\Property(property="field_key", type="string", example="plant"),
+ *   @OA\Property(property="label", type="string", example="Plant Location"),
+ *   @OA\Property(property="field_type", type="string", example="single_choice"),
+ *   @OA\Property(property="is_required", type="boolean", example=true),
+ *   @OA\Property(property="options", type="array", @OA\Items(type="string", example="P1")),
+ *   @OA\Property(property="validation", type="object"),
+ *   @OA\Property(property="visibility_rules", type="object")
+ * )
+ *
+ * @OA\Schema(
+ *   schema="ServiceRequest",
+ *   type="object",
+ *   @OA\Property(property="request_no", type="string", example="REQ-X8Z2"),
+ *   @OA\Property(property="status", type="string", example="submitted"),
+ *   @OA\Property(property="submitted_at", type="string", format="date-time"),
+ *   @OA\Property(property="service", type="object",
+ *     @OA\Property(property="svc_code", type="string", example="S20260212002"),
+ *     @OA\Property(property="title", type="string", example="WiMES System Upgrade")
+ *   ),
+ *   @OA\Property(property="answers", type="object"),
+ *   @OA\Property(property="attachments", type="array", @OA\Items(type="object"))
+ * )
  */
 class CoreSchemas {}

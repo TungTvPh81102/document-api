@@ -16,6 +16,57 @@
         }
     ],
     "paths": {
+        "/api/admin/services/ingest": {
+            "post": {
+                "tags": [
+                    "Admin Services"
+                ],
+                "summary": "Ingest raw JSON to create/update service",
+                "description": "Ingest a raw upstream JSON payload to create or update a service.",
+                "operationId": "eba080d012b48a26fafc6162b2983ed9",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "raw_payload",
+                                    "business_category_id"
+                                ],
+                                "properties": {
+                                    "raw_payload": {
+                                        "description": "The JSON from upstream system",
+                                        "type": "object"
+                                    },
+                                    "business_category_id": {
+                                        "type": "integer",
+                                        "example": 1
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Service"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/api/auth/login": {
             "post": {
                 "tags": [
@@ -163,6 +214,175 @@
                 "security": [
                     {
                         "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/services/listing": {
+            "get": {
+                "tags": [
+                    "Services"
+                ],
+                "summary": "List all services grouped by category",
+                "description": "List all service categories and their services.",
+                "operationId": "dbb84cc7194103c17ec42da40cd6a6d2",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/ServiceCategory"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/services/{svcCode}/form": {
+            "get": {
+                "tags": [
+                    "Services"
+                ],
+                "summary": "Get current form schema for a service",
+                "description": "Get service details and current form schema.",
+                "operationId": "d10d0cf9cd4c4a99e2bebec3c6ae7644",
+                "parameters": [
+                    {
+                        "name": "svcCode",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Service"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Service not found"
+                    }
+                }
+            }
+        },
+        "/api/service-requests": {
+            "post": {
+                "tags": [
+                    "Service Requests"
+                ],
+                "summary": "Submit a service request",
+                "description": "Submit a new service request.",
+                "operationId": "871df0af155fe4ed71bb4d41aa3e2be4",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "svc_code",
+                                    "answers"
+                                ],
+                                "properties": {
+                                    "svc_code": {
+                                        "type": "string",
+                                        "example": "S20260212002"
+                                    },
+                                    "answers": {
+                                        "type": "object",
+                                        "example": {
+                                            "plant": "P1",
+                                            "description": "Need access"
+                                        }
+                                    },
+                                    "attachments": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ServiceRequest"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/service-requests/{requestNo}": {
+            "get": {
+                "tags": [
+                    "Service Requests"
+                ],
+                "summary": "Get service request by request number",
+                "description": "Get details of a specific service request.",
+                "operationId": "399fcc294e4bd1ed8a8e688a21150557",
+                "parameters": [
+                    {
+                        "name": "requestNo",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ServiceRequest"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
                     }
                 ]
             }
@@ -3397,6 +3617,136 @@
                     }
                 ]
             },
+            "ServiceCategory": {
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "code": {
+                        "type": "string",
+                        "example": "IT"
+                    },
+                    "name": {
+                        "type": "string",
+                        "example": "IT Services"
+                    },
+                    "is_active": {
+                        "type": "boolean",
+                        "example": true
+                    }
+                },
+                "type": "object"
+            },
+            "Service": {
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "svc_code": {
+                        "type": "string",
+                        "example": "S20260212002"
+                    },
+                    "title": {
+                        "type": "string",
+                        "example": "WiMES System Upgrade"
+                    },
+                    "status": {
+                        "type": "string",
+                        "example": "active"
+                    },
+                    "current_form": {
+                        "properties": {
+                            "version_no": {
+                                "type": "integer",
+                                "example": 1
+                            },
+                            "fields": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/FormField"
+                                }
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "FormField": {
+                "properties": {
+                    "field_key": {
+                        "type": "string",
+                        "example": "plant"
+                    },
+                    "label": {
+                        "type": "string",
+                        "example": "Plant Location"
+                    },
+                    "field_type": {
+                        "type": "string",
+                        "example": "single_choice"
+                    },
+                    "is_required": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "options": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "example": "P1"
+                        }
+                    },
+                    "validation": {
+                        "type": "object"
+                    },
+                    "visibility_rules": {
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "ServiceRequest": {
+                "properties": {
+                    "request_no": {
+                        "type": "string",
+                        "example": "REQ-X8Z2"
+                    },
+                    "status": {
+                        "type": "string",
+                        "example": "submitted"
+                    },
+                    "submitted_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "service": {
+                        "properties": {
+                            "svc_code": {
+                                "type": "string",
+                                "example": "S20260212002"
+                            },
+                            "title": {
+                                "type": "string",
+                                "example": "WiMES System Upgrade"
+                            }
+                        },
+                        "type": "object"
+                    },
+                    "answers": {
+                        "type": "object"
+                    },
+                    "attachments": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                },
+                "type": "object"
+            },
             "ApiResponse": {
                 "required": [
                     "success",
@@ -3819,8 +4169,20 @@
     },
     "tags": [
         {
+            "name": "Admin Services",
+            "description": "Administrative endpoints for managing service templates"
+        },
+        {
             "name": "Auth",
             "description": "Authentication endpoints"
+        },
+        {
+            "name": "Services",
+            "description": "Dynamic Service discovery and form definition endpoints"
+        },
+        {
+            "name": "Service Requests",
+            "description": "Endpoints for submitting and tracking service requests"
         },
         {
             "name": "Permissions",
