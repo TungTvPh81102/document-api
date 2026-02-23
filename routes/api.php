@@ -50,4 +50,12 @@ Route::prefix('permissions')->name('permissions.')->group(function () {
     Route::delete('/{id}', [\App\Http\Controllers\Api\SystemConsole\PermissionController::class, 'delete'])->name('delete');
 });
 
+Route::prefix('sites')->name('sites.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Api\SystemConsole\SiteController::class, 'index'])->name('index');
+    Route::get('/{id}', [\App\Http\Controllers\Api\SystemConsole\SiteController::class, 'show'])->name('show');
+    Route::post('/', [\App\Http\Controllers\Api\SystemConsole\SiteController::class, 'store'])->name('store');
+    Route::put('/{id}', [\App\Http\Controllers\Api\SystemConsole\SiteController::class, 'update'])->name('update');
+    Route::delete('/{id}', [\App\Http\Controllers\Api\SystemConsole\SiteController::class, 'delete'])->name('delete');
+});
+
 // });
