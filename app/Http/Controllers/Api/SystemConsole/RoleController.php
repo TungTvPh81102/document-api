@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\SystemConsole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SystemConsoles\Role\StoreRoleRequest;
 use App\Http\Requests\SystemConsoles\Role\UpdateRoleRequest;
+use App\Http\Resources\RoleResource;
 use App\Models\Role;
 use App\Services\RoleService;
 use App\Traits\ApiResponseTrait;
@@ -34,6 +35,7 @@ class RoleController extends Controller
      *   path="/api/roles",
      *   tags={"System","Roles"},
      *   summary="List all roles with pagination",
+     *   security={{"bearerAuth": {}}},
      *   @OA\Parameter(name="page", in="query", required=false, @OA\Schema(type="integer", default=1)),
      *   @OA\Parameter(name="per_page", in="query", required=false, @OA\Schema(type="integer", default=15)),
      *   @OA\Parameter(name="search", in="query", required=false, @OA\Schema(type="string")),
@@ -73,6 +75,7 @@ class RoleController extends Controller
      *   path="/api/roles/{id}",
      *   tags={"System","Roles"},
      *   summary="Get role by ID",
+     *   security={{"bearerAuth": {}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
      *   @OA\Response(
      *     response=200,
@@ -95,7 +98,7 @@ class RoleController extends Controller
                 return $this->notFoundResponse('Role not found');
             }
 
-            return $this->successResponse($role, 'Role details: ' . $role->name);
+            return $this->successResponse(new RoleResource($role), 'Role details: ' . $role->name);
         } catch (Throwable $e) {
             return $this->serverErrorResponse($e->getMessage(), $e);
         }
@@ -108,6 +111,7 @@ class RoleController extends Controller
      *   path="/api/roles",
      *   tags={"System","Roles"},
      *   summary="Create a new role",
+     *   security={{"bearerAuth": {}}},
      *   @OA\RequestBody(
      *     required=true,
      *     @OA\JsonContent(
@@ -130,7 +134,7 @@ class RoleController extends Controller
             $data = $request->validated();
             $role = $this->roleService->createRole($data);
 
-            return $this->createdResponse($role, 'Role created successfully');
+            return $this->createdResponse(new RoleResource($role), 'Role created successfully');
         } catch (ValidationException $e) {
             return $this->validationErrorResponse($e->errors());
         } catch (Throwable $e) {
@@ -145,6 +149,7 @@ class RoleController extends Controller
      *   path="/api/roles/{id}",
      *   tags={"System","Roles"},
      *   summary="Update an existing role",
+     *   security={{"bearerAuth": {}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
      *   @OA\RequestBody(
      *     required=true,
@@ -172,7 +177,7 @@ class RoleController extends Controller
             $data = $request->validated();
             $role = $this->roleService->updateRole($role, $data);
 
-            return $this->successResponse($role, 'Role updated successfully');
+            return $this->successResponse(new RoleResource($role), 'Role updated successfully');
         } catch (ValidationException $e) {
             return $this->validationErrorResponse($e->errors());
         } catch (Throwable $e) {
@@ -187,6 +192,7 @@ class RoleController extends Controller
      *   path="/api/roles/{id}",
      *   tags={"System","Roles"},
      *   summary="Delete a role",
+     *   security={{"bearerAuth": {}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
      *   @OA\Response(response=200, description="OK"),
      *   @OA\Response(response=404, description="Not Found", @OA\JsonContent(ref="#/components/schemas/ErrorResponse")),
@@ -205,6 +211,50 @@ class RoleController extends Controller
             $this->roleService->deleteRole($role);
 
             return $this->successResponse(['deleted' => true], 'Role deleted successfully');
+        } catch (Throwable $e) {
+            return $this->serverErrorResponse($e->getMessage(), $e);
+        }
+    }
+
+    /**
+     * Sync permissions for a role
+     *
+     * @OA\Post(
+     *   path="/api/roles/{id}/permissions",
+     *   tags={"System","Roles"},
+     *   summary="Sync permissions for a role (replaces all existing permissions)",
+     *   security={{"bearerAuth": {}}},
+     *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
+     *   @OA\RequestBody(
+     *     required=true,
+     *     @OA\JsonContent(
+     *       required={"permission_ids"},
+     *       @OA\Property(property="permission_ids", type="array", @OA\Items(type="integer"), example={1,2,3})
+     *     )
+     *   ),
+     *   @OA\Response(response=200, description="OK"),
+     *   @OA\Response(response=404, description="Not Found", @OA\JsonContent(ref="#/components/schemas/ErrorResponse")),
+     *   @OA\Response(response=422, description="Validation error", @OA\JsonContent(ref="#/components/schemas/ErrorResponse")),
+     *   @OA\Response(response=500, description="Server error", @OA\JsonContent(ref="#/components/schemas/ErrorResponse"))
+     * )
+     */
+    public function syncPermissions(Request $request, string $id): JsonResponse
+    {
+        try {
+            $role = Role::query()->find($id);
+
+            if (!$role) {
+                return $this->notFoundResponse('Role not found');
+            }
+
+            $validated = $request->validate([
+                'permission_ids'   => 'required|array',
+                'permission_ids.*' => 'integer|exists:permissions,id',
+            ]);
+
+            $role = $this->roleService->syncPermissions($role, $validated['permission_ids']);
+
+            return $this->successResponse(new RoleResource($role), 'Role permissions synced successfully');
         } catch (Throwable $e) {
             return $this->serverErrorResponse($e->getMessage(), $e);
         }

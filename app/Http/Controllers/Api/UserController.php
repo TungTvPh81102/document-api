@@ -35,6 +35,7 @@ class UserController extends Controller
      *   path="/api/users",
      *   tags={"System","Users"},
      *   summary="List users",
+     *   security={{"bearerAuth": {}}},
      *   @OA\Parameter(name="page", in="query", required=false, @OA\Schema(type="integer")),
      *   @OA\Parameter(name="per_page", in="query", required=false, @OA\Schema(type="integer")),
      *   @OA\Parameter(name="search", in="query", required=false, @OA\Schema(type="string")),
@@ -75,6 +76,7 @@ class UserController extends Controller
      *   path="/api/users",
      *   tags={"System","Users"},
      *   summary="Create user",
+     *   security={{"bearerAuth": {}}},
      *   description="Create a new user. To upload an avatar, use multipart/form-data.",
      *   @OA\RequestBody(
      *     required=true,
@@ -138,6 +140,7 @@ class UserController extends Controller
      *   path="/api/users/bulk-delete",
      *   tags={"System","Users"},
      *   summary="Bulk delete users",
+     *   security={{"bearerAuth": {}}},
      *   @OA\RequestBody(
      *     required=true,
      *     @OA\JsonContent(
@@ -207,6 +210,7 @@ class UserController extends Controller
      *   path="/api/users/search",
      *   tags={"System","Users"},
      *   summary="Search users",
+     *   security={{"bearerAuth": {}}},
      *   @OA\Parameter(name="q", in="query", required=true, @OA\Schema(type="string")),
      *   @OA\Response(
      *     response=200,
@@ -242,6 +246,7 @@ class UserController extends Controller
      *   path="/api/users/stats",
      *   tags={"System","Users"},
      *   summary="User statistics",
+     *   security={{"bearerAuth": {}}},
      *   @OA\Response(
      *     response=200,
      *     description="OK",
@@ -277,6 +282,7 @@ class UserController extends Controller
      *   path="/api/user",
      *   tags={"System","Users"},
      *   summary="Current authenticated user",
+     *   security={{"bearerAuth": {}}},
      *   @OA\Response(
      *     response=200,
      *     description="OK",
@@ -305,6 +311,7 @@ class UserController extends Controller
      *   path="/api/users/{code}",
      *   tags={"System","Users"},
      *   summary="Get user by code",
+     *   security={{"bearerAuth": {}}},
      *   @OA\Parameter(name="code", in="path", required=true, @OA\Schema(type="string")),
      *   @OA\Response(
      *     response=200,
@@ -348,6 +355,7 @@ class UserController extends Controller
      *   path="/api/users/{id}",
      *   tags={"System","Users"},
      *   summary="Update user",
+     *   security={{"bearerAuth": {}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
      *   @OA\RequestBody(
      *     required=true,
@@ -438,6 +446,7 @@ class UserController extends Controller
      *   path="/api/users/{id}/restore",
      *   tags={"System","Users"},
      *   summary="Restore user",
+     *   security={{"bearerAuth": {}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
      *   @OA\Response(
      *     response=200,
@@ -629,6 +638,50 @@ class UserController extends Controller
         if (!$user) return $this->notFoundResponse('User not found', 'User');
         $user = $this->userService->unlockUser($user);
         return $this->successResponse(new UserResource($user), 'User unlocked');
+    }
+
+    /**
+     * Sync roles for a user
+     *
+     * @OA\Post(
+     *   path="/api/users/{id}/roles",
+     *   tags={"System","Users"},
+     *   summary="Sync roles for a user (replaces all existing roles)",
+     *   security={{"bearerAuth": {}}},
+     *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
+     *   @OA\RequestBody(
+     *     required=true,
+     *     @OA\JsonContent(
+     *       required={"role_ids"},
+     *       @OA\Property(property="role_ids", type="array", @OA\Items(type="integer"), example={1,2})
+     *     )
+     *   ),
+     *   @OA\Response(response=200, description="OK"),
+     *   @OA\Response(response=404, description="Not Found", @OA\JsonContent(ref="#/components/schemas/ErrorResponse")),
+     *   @OA\Response(response=422, description="Validation error", @OA\JsonContent(ref="#/components/schemas/ErrorResponse")),
+     *   @OA\Response(response=500, description="Server error", @OA\JsonContent(ref="#/components/schemas/ErrorResponse"))
+     * )
+     */
+    public function syncRoles(Request $request, int $id): JsonResponse
+    {
+        try {
+            $user = User::find($id);
+
+            if (!$user) {
+                return $this->notFoundResponse('User not found');
+            }
+
+            $validated = $request->validate([
+                'role_ids'   => 'required|array',
+                'role_ids.*' => 'integer|exists:roles,id',
+            ]);
+
+            $user = $this->userService->syncRoles($user, $validated['role_ids']);
+
+            return $this->successResponse(new UserResource($user), 'User roles synced successfully');
+        } catch (Throwable $e) {
+            return $this->serverErrorResponse($e->getMessage(), $e);
+        }
     }
 }
 

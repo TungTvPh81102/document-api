@@ -17,6 +17,7 @@ class UserService
     public function getAllUsers(int $page = 1, int $perPage = 15): LengthAwarePaginator
     {
         return User::query()
+            ->with(['roles'])
             ->orderBy('created_at', 'desc')
             ->paginate($perPage, ['*'], 'page', $page);
     }
@@ -27,6 +28,7 @@ class UserService
     public function getUserByCode(string $code): ?User
     {
         return User::query()
+            ->with(['roles.permissions'])
             ->where('code', $code)
             ->first();
     }
@@ -44,12 +46,21 @@ class UserService
      */
     public function createUser(array $data): User
     {
+        $roleIds = $data['role_ids'] ?? [];
+        unset($data['role_ids']);
+
         $data['password']          = Hash::make($data['password']);
         $data['email_verified_at'] = now();
         $data['enable']            = true;
         $data['code']              = $this->makeUserCode(now() ?? Str::random(20));
 
-        return User::query()->create($data);
+        $user = User::query()->create($data);
+
+        if (!empty($roleIds)) {
+            $user->syncRoles($roleIds);
+        }
+
+        return $user->load('roles');
     }
 
     /**
@@ -64,6 +75,33 @@ class UserService
         $user->update($data);
 
         return $user;
+    }
+
+    /**
+     * Assign a single role to a user.
+     */
+    public function assignRole(User $user, int|string $roleId): User
+    {
+        $user->assignRole($roleId);
+        return $user->load('roles');
+    }
+
+    /**
+     * Remove a single role from a user.
+     */
+    public function removeRole(User $user, int|string $roleId): User
+    {
+        $user->removeRole($roleId);
+        return $user->load('roles');
+    }
+
+    /**
+     * Sync user roles (replaces all existing roles).
+     */
+    public function syncRoles(User $user, array $roleIds): User
+    {
+        $user->syncRoles($roleIds);
+        return $user->load('roles');
     }
 
     /**
@@ -148,6 +186,7 @@ class UserService
     public function searchUsers(string $query, int $page = 1, int $perPage = 15): LengthAwarePaginator
     {
         return User::query()
+            ->with(['roles'])
             ->where('name', 'like', "%{$query}%")
             ->orWhere('email', 'like', "%{$query}%")
             ->orWhere('phone', 'like', "%{$query}%")

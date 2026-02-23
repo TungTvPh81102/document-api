@@ -30,7 +30,9 @@ class StoreUserRequest extends BaseFormRequest
             'date_of_birth' => 'nullable|date',
             'gender' => 'nullable|in:male,female,other',
             'avatar' => 'nullable|file|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
-            'enabled' => 'nullable|boolean',
+            'enabled'  => 'nullable|boolean',
+            'role_ids'   => 'nullable|array',
+            'role_ids.*' => 'integer|exists:roles,id',
         ];
     }
 
@@ -72,7 +74,10 @@ class StoreUserRequest extends BaseFormRequest
             'avatar.mimes' => 'Avatar accepted formats: jpeg, png, jpg, gif, svg.',
             'avatar.max' => 'Avatar exceeds allowed capacity (max 2MB).',
 
-            'enabled.boolean' => 'Enable status must be a boolean (true/false).',
+            'enabled.boolean'     => 'Enable status must be a boolean (true/false).',
+            'role_ids.array'      => 'Role IDs must be an array.',
+            'role_ids.*.integer'  => 'Each role ID must be an integer.',
+            'role_ids.*.exists'   => 'One or more selected roles do not exist.',
         ];
     }
 }

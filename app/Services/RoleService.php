@@ -10,11 +10,12 @@ use Illuminate\Support\Str;
 class RoleService
 {
     /**
-     * Get all roles paginated.
+     * Get all roles paginated (with permissions eager loaded).
      */
     public function getAllRoles(int $page = 1, int $perPage = 15): LengthAwarePaginator
     {
         return Role::query()
+            ->with(['permissions'])
             ->orderBy('created_at', 'desc')
             ->paginate($perPage, ['*'], 'page', $page);
     }
@@ -25,19 +26,19 @@ class RoleService
     public function searchRoles(string $query, int $page = 1, int $perPage = 15): LengthAwarePaginator
     {
         return Role::query()
+            ->with(['permissions'])
             ->where('name', 'like', "%{$query}%")
-            ->orWhere('slug', 'like', "%{$query}%")
             ->orWhere('description', 'like', "%{$query}%")
             ->orderBy('created_at', 'desc')
             ->paginate($perPage, ['*'], 'page', $page);
     }
 
     /**
-     * Get role by ID.
+     * Get role by ID (with permissions).
      */
     public function getRoleById(string $id): ?Role
     {
-        return Role::query()->find($id);
+        return Role::query()->with(['permissions'])->find($id);
     }
 
     /**
@@ -45,10 +46,19 @@ class RoleService
      */
     public function createRole(array $data): Role
     {
-        $data['slug']       = $data['slug'] ?? Str::slug($data['name']);
+        $data['guard_name'] = $data['guard_name'] ?? 'web';
         $data['created_by'] = Auth::id() ?? 'system';
 
-        return Role::query()->create($data);
+        $permissionIds = $data['permission_ids'] ?? [];
+        unset($data['permission_ids']);
+
+        $role = Role::query()->create($data);
+
+        if (!empty($permissionIds)) {
+            $role->syncPermissions($permissionIds);
+        }
+
+        return $role->load('permissions');
     }
 
     /**
@@ -57,9 +67,26 @@ class RoleService
     public function updateRole(Role $role, array $data): Role
     {
         $data['updated_by'] = Auth::id() ?? 'system';
+
+        $permissionIds = $data['permission_ids'] ?? null;
+        unset($data['permission_ids']);
+
         $role->update($data);
 
-        return $role;
+        if (!is_null($permissionIds)) {
+            $role->syncPermissions($permissionIds);
+        }
+
+        return $role->fresh('permissions');
+    }
+
+    /**
+     * Sync permissions for a role.
+     */
+    public function syncPermissions(Role $role, array $permissionIds): Role
+    {
+        $role->syncPermissions($permissionIds);
+        return $role->fresh('permissions');
     }
 
     /**

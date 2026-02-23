@@ -103,6 +103,9 @@ return [
                  */
                 'annotations' => [
                     base_path('app/Http/Controllers/Api/UserController.php'),
+                    base_path('app/Http/Controllers/Api/ServiceController.php'),
+                    base_path('app/Http/Controllers/Api/ServiceRequestController.php'),
+                    base_path('app/Http/Controllers/Api/Admin'),
                     base_path('app/Http/Controllers/Api/Auth'),
                     base_path('app/Http/Controllers/Api/SystemConsole'),
                     base_path('app/OpenApi/Schemas'),
