@@ -25,9 +25,12 @@ class StoreRoleRequest extends BaseFormRequest
             'name' => 'required|string|max:255|unique:roles,name,NULL,id,deleted_at,NULL',
             'slug' => 'required|string|max:255|alpha_dash|unique:roles,slug,NULL,id,deleted_at,NULL',
             'description' => 'nullable|string|max:1000',
-            'is_system' => 'required|boolean',
-            'level' => 'nullable|integer|min:0',
-            'enabled' => 'nullable|boolean',
+            'is_system'      => 'required|boolean',
+            'level'          => 'nullable|integer|min:0',
+            'enabled'        => 'nullable|boolean',
+            'guard_name'     => 'nullable|string|max:100',
+            'permission_ids'   => 'nullable|array',
+            'permission_ids.*' => 'integer|exists:permissions,id',
         ];
     }
 

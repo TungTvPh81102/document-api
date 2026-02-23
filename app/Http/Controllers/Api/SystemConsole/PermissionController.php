@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\SystemConsole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SystemConsoles\Permission\StorePermissionRequest;
 use App\Http\Requests\SystemConsoles\Permission\UpdatePermissionRequest;
+use App\Http\Resources\PermissionResource;
 use App\Models\Permission;
 use App\Services\PermissionService;
 use App\Traits\ApiResponseTrait;
@@ -34,6 +35,7 @@ class PermissionController extends Controller
      *   path="/api/permissions",
      *   tags={"System","Permissions"},
      *   summary="List all permissions with pagination",
+     *   security={{"bearerAuth": {}}},
      *   @OA\Parameter(name="page", in="query", required=false, @OA\Schema(type="integer", default=1)),
      *   @OA\Parameter(name="per_page", in="query", required=false, @OA\Schema(type="integer", default=15)),
      *   @OA\Parameter(name="search", in="query", required=false, @OA\Schema(type="string")),
@@ -73,6 +75,7 @@ class PermissionController extends Controller
      *   path="/api/permissions/{id}",
      *   tags={"System","Permissions"},
      *   summary="Get permission by ID",
+     *   security={{"bearerAuth": {}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
      *   @OA\Response(
      *     response=200,
@@ -95,7 +98,7 @@ class PermissionController extends Controller
                 return $this->notFoundResponse('Permission not found');
             }
 
-            return $this->successResponse($permission, 'Permission details: ' . $permission->name);
+            return $this->successResponse(new PermissionResource($permission), 'Permission details: ' . $permission->name);
         } catch (Throwable $e) {
             return $this->serverErrorResponse($e->getMessage(), $e);
         }
@@ -108,6 +111,7 @@ class PermissionController extends Controller
      *   path="/api/permissions",
      *   tags={"System","Permissions"},
      *   summary="Create a new permission",
+     *   security={{"bearerAuth": {}}},
      *   @OA\RequestBody(
      *     required=true,
      *     @OA\JsonContent(
@@ -131,7 +135,7 @@ class PermissionController extends Controller
             $data       = $request->validated();
             $permission = $this->permissionService->createPermission($data);
 
-            return $this->createdResponse($permission, 'Permission created successfully');
+            return $this->createdResponse(new PermissionResource($permission), 'Permission created successfully');
         } catch (ValidationException $e) {
             return $this->validationErrorResponse($e->errors());
         } catch (Throwable $e) {
@@ -146,6 +150,7 @@ class PermissionController extends Controller
      *   path="/api/permissions/{id}",
      *   tags={"System","Permissions"},
      *   summary="Update an existing permission",
+     *   security={{"bearerAuth": {}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
      *   @OA\RequestBody(
      *     required=true,
@@ -174,7 +179,7 @@ class PermissionController extends Controller
             $data       = $request->validated();
             $permission = $this->permissionService->updatePermission($permission, $data);
 
-            return $this->successResponse($permission, 'Permission updated successfully');
+            return $this->successResponse(new PermissionResource($permission), 'Permission updated successfully');
         } catch (ValidationException $e) {
             return $this->validationErrorResponse($e->errors());
         } catch (Throwable $e) {
@@ -189,6 +194,7 @@ class PermissionController extends Controller
      *   path="/api/permissions/{id}",
      *   tags={"System","Permissions"},
      *   summary="Delete a permission",
+     *   security={{"bearerAuth": {}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
      *   @OA\Response(response=200, description="OK"),
      *   @OA\Response(response=404, description="Not Found", @OA\JsonContent(ref="#/components/schemas/ErrorResponse")),

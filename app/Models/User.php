@@ -2,18 +2,17 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use App\Traits\HasPermissionsTrait;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, SoftDeletes, HasPermissionsTrait;
+    use HasFactory, Notifiable, SoftDeletes, HasRoles;
 
     /**
      * The attributes that are mass assignable.
@@ -41,7 +40,7 @@ class User extends Authenticatable
         'locked_at',
         'created_by',
         'updated_by',
-        'deleted_by'
+        'deleted_by',
     ];
 
     /**
@@ -63,17 +62,10 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-            'locked_at' => 'datetime',
-            'log_on_date' => 'datetime',
+            'password'          => 'hashed',
+            'locked_at'         => 'datetime',
+            'log_on_date'       => 'datetime',
+            'enable'            => 'boolean',
         ];
-    }
-
-    /**
-     * Relationship: User has many permissions
-     */
-    public function permissions(): HasMany
-    {
-        return $this->hasMany(Permission::class, 'user_id', 'id');
     }
 }
