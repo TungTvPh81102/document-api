@@ -21,9 +21,24 @@ class LoggerService
     private const SERVICE_NAME = 'document-api';
 
     private const SENSITIVE_FIELDS = [
-        'password', 'password_confirmation', 'token',
-        'secret', 'api_key', 'credit_card', 'cvv', 'pin',
+        'password',
+        'password_confirmation',
+        'token',
+        'secret',
+        'api_key',
+        'credit_card',
+        'cvv',
+        'pin',
     ];
+
+    private bool $useQueue;
+    private bool $disableLoggingForPaths;
+
+    public function __construct()
+    {
+        $this->useQueue = config('logging.request_logger.use_queue', false);
+        $this->disableLoggingForPaths = config('logging.request_logger.skip_paths_enabled', true);
+    }
 
     /**
      * Log a complete HTTP request/response cycle.
@@ -38,6 +53,11 @@ class LoggerService
         bool      $isError = false,
         ?string   $failResult = null,
     ): void {
+        // Skip logging for certain paths
+        if ($this->shouldSkipLogging($request)) {
+            return;
+        }
+
         try {
             $traceId      = $request->header('X-Request-ID', (string) Str::orderedUuid());
             $statusCode   = method_exists($response, 'getStatusCode') ? $response->getStatusCode() : 500;
@@ -75,8 +95,12 @@ class LoggerService
             $this->writeToFile($logData, $level);
 
             // ── 2. Write to database (cim_sql_log) ──
-            $this->writeToDatabase($logData, $traceId);
-
+            if ($this->useQueue) {
+                // Dispatch to queue for async processing
+                \App\Jobs\LogRequestJob::dispatch($logData, $traceId)->onQueue('logs');
+            } else {
+                $this->writeToDatabase($logData, $traceId);
+            }
         } catch (Throwable $e) {
             // Fallback: never let logging break the app
             Log::error('[LoggerService] Failed to log request', [
@@ -93,48 +117,62 @@ class LoggerService
 
     /**
      * Write structured log to the grafana file channel.
+     * Has fallback to error_log if channel fails
      */
     private function writeToFile(array $data, string $level): void
     {
-        $channel = Log::channel('grafana');
+        try {
+            $channel = Log::channel('grafana');
+            $jsonData = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        match ($level) {
-            'error', 'critical' => $channel->error(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
-            'warning'           => $channel->warning(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
-            default             => $channel->info(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
-        };
+            match ($level) {
+                'error', 'critical' => $channel->error($jsonData),
+                'warning'           => $channel->warning($jsonData),
+                default             => $channel->info($jsonData),
+            };
+        } catch (Throwable $e) {
+            // Fallback to error_log if channel fails
+            @error_log("[LoggerService] Failed to write to grafana channel: " . $e->getMessage());
+        }
     }
 
     /**
      * Insert log record into cim_sql_log table.
+     * Silently fails with error_log fallback
      */
     private function writeToDatabase(array $data, string $traceId): void
     {
-        DB::table('cim_sql_log')->insert([
-            'id'            => Str::orderedUuid(),
-            'request_id'    => $traceId,
-            'level'         => $data['level'],
-            'service'       => $data['service'],
-            'method'        => $data['method'],
-            'url'           => Str::limit($data['route'], 500),
-            'route'         => Str::limit($data['route'], 255),
-            'status_code'   => $data['status_code'],
-            'function_name' => $data['function_name'],
-            'logic_name'    => $data['logic_name'],
-            'parameters'    => json_encode($data['parameters'], JSON_UNESCAPED_UNICODE),
-            'response_data' => Str::limit($data['response_summary'] ?? '', 2000),
-            'fail_result'   => isset($data['fail_result']) ? Str::limit($data['fail_result'], 4000) : null,
-            'start_time'    => $data['start_time'],
-            'end_time'      => $data['end_time'],
-            'duration_ms'   => $data['duration_ms'],
-            'user_id'       => $data['user_id'],
-            'ip_address'    => $data['ip'],
-            'user_agent'    => $data['user_agent'],
-            'is_error'      => in_array($data['level'], ['error', 'critical']),
-            'message'       => Str::limit($data['response_summary'] ?? 'OK', 500),
-            'created_at'    => now(),
-            'updated_at'    => now(),
-        ]);
+        try {
+            DB::table('cim_sql_log')->insert([
+                'id'            => Str::orderedUuid(),
+                'request_id'    => $traceId,
+                'level'         => $data['level'],
+                'service'       => $data['service'],
+                'method'        => $data['method'],
+                'url'           => Str::limit($data['route'], 500),
+                'route'         => Str::limit($data['route'], 255),
+                'status_code'   => $data['status_code'],
+                'function_name' => $data['function_name'],
+                'logic_name'    => $data['logic_name'],
+                'parameters'    => json_encode($data['parameters'], JSON_UNESCAPED_UNICODE),
+                'response_data' => Str::limit($data['response_summary'] ?? '', 2000),
+                'fail_result'   => isset($data['fail_result']) ? Str::limit($data['fail_result'], 4000) : null,
+                'start_time'    => $data['start_time'],
+                'end_time'      => $data['end_time'],
+                'duration_ms'   => $data['duration_ms'],
+                'user_id'       => $data['user_id'],
+                'ip_address'    => $data['ip'],
+                'user_agent'    => $data['user_agent'],
+                'is_error'      => in_array($data['level'], ['error', 'critical']),
+                'message'       => Str::limit($data['response_summary'] ?? 'OK', 500),
+                'created_at'    => now(),
+                'updated_at'    => now(),
+            ]);
+        } catch (Throwable $e) {
+            // Silent failure - file logging already succeeded in writeToFile()
+            // Log to PHP error_log as ultimate fallback
+            @error_log("[LoggerService] Failed to write to cim_sql_log: " . $e->getMessage());
+        }
     }
 
     /**
@@ -208,5 +246,51 @@ class LoggerService
     private function sanitize(array $data): array
     {
         return SecurityUtil::redact($data);
+    }
+
+    /**
+     * Check if logging should be skipped for this path
+     */
+    private function shouldSkipLogging(Request $request): bool
+    {
+        if (!$this->disableLoggingForPaths) {
+            return false;
+        }
+
+        $skipPaths = config('logging.request_logger.skip_paths', [
+            '/up',
+            '/health',
+            '/health/check',
+            '/api/health',
+            '/telescope',
+            '*.js',
+            '*.css',
+            '*.png',
+            '*.jpg',
+            '*.svg',
+            '/api/v1/docs',
+        ]);
+
+        $path = $request->getPathInfo();
+
+        foreach ($skipPaths as $skipPath) {
+            // Handle wildcard patterns
+            if ($skipPath === '*' || $skipPath === '/*') {
+                return true;
+            }
+
+            if (str_contains($skipPath, '*')) {
+                $pattern = str_replace('*', '.*', preg_quote($skipPath, '#'));
+                if (preg_match("#^{$pattern}$#", $path)) {
+                    return true;
+                }
+            }
+
+            if ($path === $skipPath) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
