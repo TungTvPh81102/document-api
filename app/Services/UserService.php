@@ -4,65 +4,37 @@ namespace App\Services;
 
 use App\Models\User;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 class UserService
 {
-    public function __construct(private LoggerService $logger) {}
-
+    /**
+     * Get all users paginated.
+     */
     public function getAllUsers(int $page = 1, int $perPage = 15): LengthAwarePaginator
     {
-        $start = microtime(true);
-        $corrId = (string) Str::orderedUuid();
-
-        try {
-            $paginator = User::query()
-                ->orderBy('created_at', 'desc')
-                ->paginate($perPage, ['*'], 'page', $page);
-
-            $duration = microtime(true) - $start;
-
-            $this->logger->logDatabaseOperation(__FUNCTION__, User::class, Str::uuid(), $duration);
-            $this->logger->logAction('list', null, [
-                'page' => $page,
-                'per_page' => $perPage,
-                'result_count' => $paginator->count(),
-                'total' => $paginator->total(),
-                'duration_ms' => round($duration * 1000, 2),
-            ]);
-
-            return $paginator;
-        } catch (\Throwable $e) {
-            $duration = microtime(true) - $start;
-            $durationMs = round($duration * 1000, 2);
-
-            $this->logger->logServiceError(
-                __CLASS__ . '@' . __FUNCTION__, 
-                'GET',                         
-                $e,
-                [
-                    'page'        => $page,
-                    'per_page'    => $perPage,
-                    'duration_ms' => $durationMs,
-                    'correlation_id' => $corrId,
-                ]
-            );
-
-            throw $e;
-        }
+        return User::query()
+            ->with(['roles'])
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage, ['*'], 'page', $page);
     }
 
     /**
-     * Get user by ID
+     * Get user by code.
      */
-    public function getUserById(int $id): ?User
+    public function getUserByCode(string $code): ?User
     {
-        return User::find($id);
+        return User::query()
+            ->with(['roles.permissions'])
+            ->where('code', $code)
+            ->first();
     }
 
     /**
-     * Get user by email
+     * Get user by email.
      */
     public function getUserByEmail(string $email): ?User
     {
@@ -70,108 +42,78 @@ class UserService
     }
 
     /**
-     * Create new user
+     * Create new user.
      */
     public function createUser(array $data): User
     {
-        $start = microtime(true);
+        $roleIds = $data['role_ids'] ?? [];
+        unset($data['role_ids']);
 
-        try {
-            $data['password'] = Hash::make($data['password']);
-            $data['email_verified_at'] = now();
-            $data['enable'] = true;
+        $data['password']          = Hash::make($data['password']);
+        $data['email_verified_at'] = now();
+        $data['enable']            = true;
+        $data['code']              = $this->makeUserCode(now() ?? Str::random(20));
 
-            $user = User::create($data);
+        $user = User::query()->create($data);
 
-            $duration = microtime(true) - $start;
-
-            $this->logger->logDatabaseOperation('create', 'User', $user->id, $duration);
-            $this->logger->logUserAction('created', $user, [
-                'email' => $user->email,
-                'name' => $user->name,
-                'duration_ms' => round($duration * 1000, 2),
-            ]);
-
-            return $user;
-        } catch (\Throwable $e) {
-            $duration = microtime(true) - $start;
-            \Log::error('createUser failed', [
-                'exception' => $e->getMessage(),
-                'email' => $data['email'] ?? null,
-                'duration_ms' => round($duration * 1000, 2),
-            ]);
-            throw $e;
+        if (!empty($roleIds)) {
+            $user->syncRoles($roleIds);
         }
+
+        return $user->load('roles');
     }
 
     /**
-     * Update user
+     * Update user.
      */
     public function updateUser(User $user, array $data): User
     {
-        $start = microtime(true);
-
-        try {
-            $originalData = $user->only(array_keys($data));
-
-            // Hash password if provided
-            if (isset($data['password'])) {
-                $data['password'] = Hash::make($data['password']);
-            }
-
-            $user->update($data);
-
-            $duration = microtime(true) - $start;
-
-            $this->logger->logDatabaseOperation('update', 'User', $user->id, $duration);
-            $this->logger->logUserAction('updated', $user, [
-                'changes' => $this->getChanges($originalData, $data),
-                'duration_ms' => round($duration * 1000, 2),
-            ]);
-
-            return $user;
-        } catch (\Throwable $e) {
-            $duration = microtime(true) - $start;
-            \Log::error('updateUser failed', [
-                'exception' => $e->getMessage(),
-                'user_id' => $user->id,
-                'duration_ms' => round($duration * 1000, 2),
-            ]);
-            throw $e;
+        if (isset($data['password'])) {
+            $data['password'] = Hash::make($data['password']);
         }
+
+        $user->update($data);
+
+        return $user;
     }
 
     /**
-     * Delete user (soft delete)
+     * Assign a single role to a user.
+     */
+    public function assignRole(User $user, int|string $roleId): User
+    {
+        $user->assignRole($roleId);
+        return $user->load('roles');
+    }
+
+    /**
+     * Remove a single role from a user.
+     */
+    public function removeRole(User $user, int|string $roleId): User
+    {
+        $user->removeRole($roleId);
+        return $user->load('roles');
+    }
+
+    /**
+     * Sync user roles (replaces all existing roles).
+     */
+    public function syncRoles(User $user, array $roleIds): User
+    {
+        $user->syncRoles($roleIds);
+        return $user->load('roles');
+    }
+
+    /**
+     * Delete user (soft delete).
      */
     public function deleteUser(User $user): bool
     {
-        $start = microtime(true);
-
-        try {
-            $result = $user->delete();
-            $duration = microtime(true) - $start;
-
-            $this->logger->logDatabaseOperation('delete', 'User', $user->id, $duration);
-            $this->logger->logUserAction('deleted', $user, [
-                'type' => 'soft_delete',
-                'duration_ms' => round($duration * 1000, 2),
-            ]);
-
-            return $result;
-        } catch (\Throwable $e) {
-            $duration = microtime(true) - $start;
-            \Log::error('deleteUser failed', [
-                'exception' => $e->getMessage(),
-                'user_id' => $user->id,
-                'duration_ms' => round($duration * 1000, 2),
-            ]);
-            throw $e;
-        }
+        return $user->delete();
     }
 
     /**
-     * Restore deleted user
+     * Restore deleted user.
      */
     public function restoreUser(User $user): bool
     {
@@ -179,7 +121,7 @@ class UserService
     }
 
     /**
-     * Permanently delete user
+     * Permanently delete user.
      */
     public function forceDeleteUser(User $user): bool
     {
@@ -187,12 +129,12 @@ class UserService
     }
 
     /**
-     * Lock user account
+     * Lock user account.
      */
     public function lockUser(User $user, int $lockDuration = 3600): User
     {
         $user->update([
-            'locked_at' => now()->addSeconds($lockDuration),
+            'locked_at'  => now()->addSeconds($lockDuration),
             'lock_count' => ($user->lock_count ?? 0) + 1,
         ]);
 
@@ -200,12 +142,12 @@ class UserService
     }
 
     /**
-     * Unlock user account
+     * Unlock user account.
      */
     public function unlockUser(User $user): User
     {
         $user->update([
-            'locked_at' => null,
+            'locked_at'  => null,
             'lock_count' => 0,
         ]);
 
@@ -213,7 +155,7 @@ class UserService
     }
 
     /**
-     * Check if user is locked
+     * Check if user is locked.
      */
     public function isUserLocked(User $user): bool
     {
@@ -221,7 +163,7 @@ class UserService
     }
 
     /**
-     * Enable user
+     * Enable user.
      */
     public function enableUser(User $user): User
     {
@@ -230,7 +172,7 @@ class UserService
     }
 
     /**
-     * Disable user
+     * Disable user.
      */
     public function disableUser(User $user): User
     {
@@ -239,95 +181,90 @@ class UserService
     }
 
     /**
-     * Search users
+     * Search users.
      */
     public function searchUsers(string $query, int $page = 1, int $perPage = 15): LengthAwarePaginator
     {
-        $start = microtime(true);
-
-        try {
-            $paginator = User::query()
-                ->where('name', 'like', "%{$query}%")
-                ->orWhere('email', 'like', "%{$query}%")
-                ->orWhere('phone', 'like', "%{$query}%")
-                ->orderBy('created_at', 'desc')
-                ->paginate($perPage, ['*'], 'page', $page);
-
-            $duration = microtime(true) - $start;
-
-            $this->logger->logDatabaseOperation('search', 'User', null, $duration);
-            $this->logger->logUserAction('searched', null, [
-                'query' => $query,
-                'page' => $page,
-                'per_page' => $perPage,
-                'result_count' => $paginator->count(),
-                'duration_ms' => round($duration * 1000, 2),
-            ]);
-
-            return $paginator;
-        } catch (\Throwable $e) {
-            $duration = microtime(true) - $start;
-            \Log::error('searchUsers failed', [
-                'exception' => $e->getMessage(),
-                'query' => $query,
-                'page' => $page,
-                'duration_ms' => round($duration * 1000, 2),
-            ]);
-            throw $e;
-        }
+        return User::query()
+            ->with(['roles'])
+            ->where('name', 'like', "%{$query}%")
+            ->orWhere('email', 'like', "%{$query}%")
+            ->orWhere('phone', 'like', "%{$query}%")
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage, ['*'], 'page', $page);
     }
 
     /**
-     * Get user statistics
+     * Get user statistics.
      */
     public function getUserStatistics(): array
     {
-        $start = microtime(true);
-
-        try {
-            $stats = [
-                'total_users' => User::count(),
-                'active_users' => User::where('enable', true)->count(),
-                'disabled_users' => User::where('enable', false)->count(),
-                'locked_users' => User::whereNotNull('locked_at')->where('locked_at', '>', now())->count(),
-                'verified_users' => User::whereNotNull('email_verified_at')->count(),
-            ];
-
-            $duration = microtime(true) - $start;
-
-            $this->logger->logDatabaseOperation('statistics', 'User', null, $duration);
-            $this->logger->logUserAction('statistics_retrieved', null, [
-                'duration_ms' => round($duration * 1000, 2),
-                'stats' => $stats,
-            ]);
-
-            return $stats;
-        } catch (\Throwable $e) {
-            $duration = microtime(true) - $start;
-            \Log::error('getUserStatistics failed', [
-                'exception' => $e->getMessage(),
-                'duration_ms' => round($duration * 1000, 2),
-            ]);
-            throw $e;
-        }
+        return [
+            'total_users'    => User::count(),
+            'active_users'   => User::where('enable', true)->count(),
+            'disabled_users' => User::where('enable', false)->count(),
+            'locked_users'   => User::whereNotNull('locked_at')->where('locked_at', '>', now())->count(),
+            'verified_users' => User::whereNotNull('email_verified_at')->count(),
+        ];
     }
 
-    /**
-     * Get changes between original and updated data
-     */
-    private function getChanges(array $original, array $updated): array
+    /* ═══════════════════════════════════════════════════════
+     *  Private helpers
+     * ═══════════════════════════════════════════════════════ */
+
+    private function makeUserCode(?string $incomingCode): string
     {
-        $changes = [];
-        foreach ($updated as $key => $value) {
-            if ($key === 'password') {
-                $changes[$key] = 'hashed';
-            } elseif (($original[$key] ?? null) !== $value) {
-                $changes[$key] = [
-                    'from' => $original[$key] ?? null,
-                    'to' => $value,
-                ];
+        $base   = Carbon::now()->format('YmdHis');
+        $maxLen = 20;
+
+        if (!empty($incomingCode)) {
+            $normalized = preg_replace('/\D+/', '', $incomingCode);
+            if (empty($normalized)) {
+                $normalized = $base;
+            }
+            $code = substr($normalized, 0, $maxLen);
+            if (strlen($code) < 14 || !str_starts_with($code, $base)) {
+                $code = $base;
+            }
+        } else {
+            $code = $base;
+        }
+
+        if (strlen($code) < $maxLen) {
+            $need = $maxLen - strlen($code);
+            $code .= $this->randomDigits($need);
+        }
+
+        $tries = 0;
+        while ($this->codeExists($code) && $tries < 5) {
+            $suffixLen = max(1, min(6, $maxLen - 14));
+            $code      = $base . $this->randomDigits($suffixLen);
+            $tries++;
+        }
+
+        if ($this->codeExists($code)) {
+            $remaining = $maxLen - strlen($code);
+            if ($remaining > 0) {
+                $code .= $this->randomDigits($remaining);
+            } else {
+                $code = substr($code, 0, $maxLen - 2) . $this->randomDigits(2);
             }
         }
-        return $changes;
+
+        return $code;
+    }
+
+    private function randomDigits(int $length): string
+    {
+        $digits = '';
+        for ($i = 0; $i < $length; $i++) {
+            $digits .= random_int(0, 9);
+        }
+        return $digits;
+    }
+
+    private function codeExists(string $code): bool
+    {
+        return DB::table('users')->where('code', $code)->exists();
     }
 }

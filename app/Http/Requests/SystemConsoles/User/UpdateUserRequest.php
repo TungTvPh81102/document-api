@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Http\Requests;
+namespace App\Http\Requests\SystemConsoles\User;
 
-use Illuminate\Foundation\Http\FormRequest;
+use App\Http\Requests\BaseFormRequest;
 use Illuminate\Validation\Rule;
 
-class UpdateUserRequest extends FormRequest
+class UpdateUserRequest extends BaseFormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -53,12 +53,12 @@ class UpdateUserRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'name.required' => 'Tên người dùng không được để trống',
-            'email.email' => 'Email không hợp lệ',
-            'email.unique' => 'Email đã được sử dụng',
-            'password.min' => 'Mật khẩu phải ít nhất 8 ký tự',
-            'password.confirmed' => 'Xác nhận mật khẩu không khớp',
-            'phone.unique' => 'Số điện thoại đã được sử dụng',
+            'name.required' => 'Name is required.',
+            'email.email' => 'Email format is invalid.',
+            'email.unique' => 'This email is already in use.',
+            'password.min' => 'Password must be at least 8 characters.',
+            'password.confirmed' => 'Password confirmation does not match.',
+            'phone.unique' => 'This phone number is already in use.',
         ];
     }
 }

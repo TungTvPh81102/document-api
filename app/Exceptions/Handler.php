@@ -6,10 +6,13 @@ use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Throwable;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use App\Services\LoggerService;
+use App\Traits\ApiResponseTrait;
 
 class Handler extends ExceptionHandler
 {
- /**
+    use ApiResponseTrait;
+    
+    /**
      * A list of exception types with their corresponding custom log levels.
      *
      * @var array<class-string<\Throwable>, \Psr\Log\LogLevel::*>
@@ -56,41 +59,64 @@ class Handler extends ExceptionHandler
 
     public function render($request, Throwable $e)
     {
-        if ($this->shouldReturnJson($request, $e)) {
-            // Log with structured LoggerService
-            try {
-                LoggerService::logApiError($e, $request);
-            } catch (Throwable $logError) {
-                // swallow logging issues to not mask original error
-            }
-
-            $status = 500;
-            $message = 'Internal server error';
-
-            if ($e instanceof HttpExceptionInterface) {
-                $status = $e->getStatusCode();
-                $message = $e->getMessage() ?: $message;
-            }
-
-            // ValidationException handled by parent to include errors, but normalize payload
-            if (method_exists($e, 'errors')) {
-                $status = 422;
-                $errors = $e->errors();
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Validation failed',
-                    'errors' => $errors,
-                    'timestamp' => now()->toISOString(),
-                ], $status);
-            }
-
-            return response()->json([
-                'success' => false,
-                'message' => $message,
-                'timestamp' => now()->toISOString(),
-            ], $status);
+        if ($request->is('api/*') || $request->expectsJson()) {
+            return $this->handleApiException($request, $e);
         }
 
         return parent::render($request, $e);
+    }
+
+    /**
+     * Handle API exceptions
+     */
+    protected function handleApiException($request, Throwable $e)
+    {
+        $correlationId = $request->header('X-Correlation-ID');
+        if ($correlationId) {
+            $this->setCorrelationId($correlationId);
+        }
+
+        // Validation exceptions
+        if ($e instanceof ValidationException) {
+            return $this->validationErrorResponse(
+                $e->errors(),
+                'Validation failed'
+            );
+        }
+
+        // Authentication exceptions
+        if ($e instanceof AuthenticationException) {
+            return $this->unauthorizedResponse($e->getMessage());
+        }
+
+        // Authorization exceptions
+        if ($e instanceof AuthorizationException) {
+            return $this->forbiddenResponse($e->getMessage());
+        }
+
+        // Model not found
+        if ($e instanceof ModelNotFoundException) {
+            $model = class_basename($e->getModel());
+            return $this->notFoundResponse("{$model} not found");
+        }
+
+        // Route not found
+        if ($e instanceof NotFoundHttpException) {
+            return $this->notFoundResponse('Endpoint not found');
+        }
+
+        // Method not allowed
+        if ($e instanceof MethodNotAllowedHttpException) {
+            return $this->errorResponse(
+                'Method not allowed',
+                405
+            );
+        }
+
+        // Generic server error
+        return $this->serverErrorResponse(
+            app()->isProduction() ? 'Internal server error' : $e->getMessage(),
+            $e
+        );
     }
 }

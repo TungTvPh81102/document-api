@@ -1,19 +1,9 @@
 {
     "openapi": "3.0.0",
     "info": {
-        "title": "Document API",
-        "description": "API documentation for Document Management System",
-        "contact": {
-            "email": "admin@example.com"
-        },
+        "title": "Document API Documentation",
         "version": "1.0.0"
     },
-    "servers": [
-        {
-            "url": "http://localhost:8000",
-            "description": "Document API Server (Local)"
-        }
-    ],
     "paths": {
         "/api/health": {
             "get": {
@@ -52,18 +42,6 @@
                         }
                     }
                 }
-            }
-        }
-    },
-    "components": {
-        "securitySchemes": {
-            "bearerAuth": {
-                "type": "http",
-                "description": "Bearer token security",
-                "name": "Token based security",
-                "in": "header",
-                "bearerFormat": "JWT",
-                "scheme": "bearer"
             }
         }
     },

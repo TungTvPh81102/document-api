@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Services\LoggerService;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
@@ -46,13 +45,8 @@ abstract class BaseFormRequest extends FormRequest
     {
         $errors = $validator->errors();
 
-        LoggerService::logApiError(
-            new \Exception('Dữ liệu không hợp lệ'),
-            $this
-        );
-
         $response = $this->errorResponse(
-            'Dữ liệu không hợp lệ',
+            'Validation failed',
             Response::HTTP_UNPROCESSABLE_ENTITY,
             $errors->messages()
         );
@@ -66,7 +60,7 @@ abstract class BaseFormRequest extends FormRequest
     protected function failedAuthorization(): void
     {
         $response = $this->errorResponse(
-            'Bạn không có quyền thực hiện hành động này',
+            'You are not authorized to perform this action',
             Response::HTTP_FORBIDDEN
         );
 
