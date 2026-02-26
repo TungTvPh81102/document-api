@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * @OA\Schema(
@@ -23,7 +24,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class Permission extends \Spatie\Permission\Models\Permission
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'name',

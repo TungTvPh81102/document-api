@@ -142,8 +142,6 @@ class SubSiteController extends Controller
             $subSite = $this->subSiteService->createSubSite($data);
 
             return $this->createdResponse(new SubSiteResource($subSite), 'Sub-site created successfully');
-        } catch (ValidationException $e) {
-            return $this->validationErrorResponse($e->errors());
         } catch (Throwable $e) {
             return $this->serverErrorResponse($e->getMessage(), $e);
         }
@@ -185,8 +183,6 @@ class SubSiteController extends Controller
             $subSite = $this->subSiteService->updateSubSite($subSite, $data);
 
             return $this->successResponse(new SubSiteResource($subSite), 'Sub-site updated successfully');
-        } catch (ValidationException $e) {
-            return $this->validationErrorResponse($e->errors());
         } catch (Throwable $e) {
             return $this->serverErrorResponse($e->getMessage(), $e);
         }

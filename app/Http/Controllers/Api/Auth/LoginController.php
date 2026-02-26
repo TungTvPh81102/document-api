@@ -7,7 +7,6 @@ use App\Http\Requests\Auth\LoginRequest;
 use App\Services\AuthService;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Validation\ValidationException;
 use Throwable;
 
 /**
@@ -65,9 +64,7 @@ class LoginController extends Controller
             $auth = $this->authService->login($data);
 
             return $this->successResponse($auth, 'Login successful');
-        } catch (ValidationException $e) {
-            return $this->validationErrorResponse($e->errors());
-        } catch (Throwable $e) {
+        }catch (Throwable $e) {
             return $this->serverErrorResponse($e->getMessage(), $e);
         }
     }

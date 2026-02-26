@@ -58,10 +58,10 @@ class ServiceRequestController extends Controller
                 return $this->notFoundResponse('Service not found');
             }
 
-            $requesterId = Auth::id() ?? 'system'; 
+            $requesterId = Auth::id() ?? 'system';
             $serviceRequest = $this->requestService->submitRequest(
-                $service, 
-                $request->all(), 
+                $service,
+                $request->all(),
                 $requesterId
             );
 
@@ -69,8 +69,6 @@ class ServiceRequestController extends Controller
                 new ServiceRequestResource($serviceRequest),
                 'Service request submitted successfully.'
             );
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return $this->validationErrorResponse($e->errors());
         } catch (Throwable $e) {
             return $this->serverErrorResponse($e->getMessage(), $e);
         }

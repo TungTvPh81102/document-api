@@ -135,8 +135,6 @@ class RoleController extends Controller
             $role = $this->roleService->createRole($data);
 
             return $this->createdResponse(new RoleResource($role), 'Role created successfully');
-        } catch (ValidationException $e) {
-            return $this->validationErrorResponse($e->errors());
         } catch (Throwable $e) {
             return $this->serverErrorResponse($e->getMessage(), $e);
         }
@@ -178,8 +176,6 @@ class RoleController extends Controller
             $role = $this->roleService->updateRole($role, $data);
 
             return $this->successResponse(new RoleResource($role), 'Role updated successfully');
-        } catch (ValidationException $e) {
-            return $this->validationErrorResponse($e->errors());
         } catch (Throwable $e) {
             return $this->serverErrorResponse($e->getMessage(), $e);
         }

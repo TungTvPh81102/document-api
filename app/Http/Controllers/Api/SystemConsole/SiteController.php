@@ -177,8 +177,6 @@ class SiteController extends Controller
             $site = $this->siteService->updateSite($site, $data);
 
             return $this->successResponse(new SiteResource($site), 'Site updated successfully');
-        } catch (ValidationException $e) {
-            return $this->validationErrorResponse($e->errors());
         } catch (Throwable $e) {
             return $this->serverErrorResponse($e->getMessage(), $e);
         }
