@@ -28,6 +28,9 @@ class Site extends Model
 {
     use HasFactory, SoftDeletes;
 
+    /**
+     * @var int|mixed|string
+     */
     protected $fillable = [
         'name',
         'code',

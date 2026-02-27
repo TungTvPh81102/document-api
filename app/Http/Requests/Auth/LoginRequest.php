@@ -22,7 +22,6 @@ class LoginRequest extends BaseFormRequest
         return [
             'email' => 'nullable|email|exists:users,email',
             'employee_id' => 'nullable|string|max:50|exists:users,employee_id',
-
             'password' => 'required|string|min:6',
         ];
     }
@@ -45,9 +44,6 @@ class LoginRequest extends BaseFormRequest
         ];
     }
 
-    /**
-     * Extra validation to ensure user provides EMAIL or EMPLOYEE_ID
-     */
     protected function prepareForValidation()
     {
         if (!$this->email && !$this->employee_id) {

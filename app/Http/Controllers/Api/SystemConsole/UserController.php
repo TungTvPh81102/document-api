@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers\Api\SystemConsole;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SystemConsoles\User\StoreUserRequest;
@@ -109,24 +109,22 @@ class UserController extends Controller
      *   )
      * )
      */
-    public function store(StoreUserRequest $request)
+    public function store(StoreUserRequest $request): JsonResponse
     {
         try {
             $data = $request->validated();
             $user = $this->userService->createUser($data);
 
             return $this->withLinks([
-                    'self'   => route('users.show', $user->code ?? $user->id),
-                    'update' => route('users.update', $user->id),
-                    'delete' => route('users.destroy', $user->id),
-                ])
+                'self'   => route('users.show', $user->code ?? $user->id),
+                'update' => route('users.update', $user->id),
+                'delete' => route('users.destroy', $user->id),
+            ])
                 ->createdResponse(
                     new UserResource($user),
                     'User created successfully',
                     route('users.show', $user->code ?? $user->id)
                 );
-        } catch (ValidationException $e) {
-            return $this->validationErrorResponse($e->errors());
         } catch (Throwable $e) {
             return $this->serverErrorResponse('Failed to create user', $e);
         }
@@ -165,7 +163,7 @@ class UserController extends Controller
      *   )
      * )
      */
-    public function bulkDelete(Request $request)
+    public function bulkDelete(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'ids' => 'required|array|min:1',
@@ -178,7 +176,7 @@ class UserController extends Controller
 
         foreach ($validated['ids'] as $id) {
             try {
-                $user = \App\Models\User::findOrFail($id);
+                $user = User::query()->findOrFail($id);
                 $this->userService->deleteUser($user);
                 $successful++;
                 $results[] = [
@@ -224,11 +222,11 @@ class UserController extends Controller
      *   )
      * )
      */
-    public function search(Request $request)
+    public function search(Request $request): JsonResponse
     {
         $query = $request->get('q');
 
-        $users = User::where('name', 'like', "%{$query}%")
+        $users = User::query()->where('name', 'like', "%{$query}%")
             ->orWhere('email', 'like', "%{$query}%")
             ->limit(20)
             ->get();
@@ -259,12 +257,12 @@ class UserController extends Controller
      *   )
      * )
      */
-    public function stats()
+    public function stats(): JsonResponse
     {
         $stats = [
-            'total_users' => User::count(),
-            'active_users' => User::where('enable', true)->count(),
-            'new_today' => User::whereDate('created_at', today())->count(),
+            'total_users' => User::query()->count(),
+            'active_users' => User::query()->where('enable', true)->count(),
+            'new_today' => User::query()->whereDate('created_at', today())->count(),
         ];
 
         return $this->withMeta([
@@ -330,7 +328,7 @@ class UserController extends Controller
      *   )
      * )
      */
-    public function show(string $code)
+    public function show(string $code): JsonResponse
     {
         try {
             $user = $this->userService->getUserByCode($code);
@@ -387,9 +385,9 @@ class UserController extends Controller
      *   )
      * )
      */
-    public function update(Request $request, int $id)
+    public function update(Request $request, int $id): JsonResponse
     {
-        $user = User::find($id);
+        $user = User::query()->find($id);
         if (!$user) {
             return $this->notFoundResponse('User not found', 'User');
         }
@@ -429,9 +427,9 @@ class UserController extends Controller
      *   )
      * )
      */
-    public function destroy(int $id)
+    public function destroy(int $id): JsonResponse
     {
-        $user = User::find($id);
+        $user = User::query()->find($id);
         if (!$user) {
             return $this->notFoundResponse('User not found', 'User');
         }
@@ -465,7 +463,7 @@ class UserController extends Controller
      *   )
      * )
      */
-    public function restore(int $id)
+    public function restore(int $id): JsonResponse
     {
         $user = User::withTrashed()->find($id);
         if (!$user) {
@@ -500,7 +498,7 @@ class UserController extends Controller
      *   )
      * )
      */
-    public function forceDelete(int $id)
+    public function forceDelete(int $id): JsonResponse
     {
         $user = User::withTrashed()->find($id);
         if (!$user) {
@@ -534,9 +532,9 @@ class UserController extends Controller
      *   )
      * )
      */
-    public function enable(int $id)
+    public function enable(int $id): JsonResponse
     {
-        $user = User::find($id);
+        $user = User::query()->find($id);
         if (!$user) return $this->notFoundResponse('User not found', 'User');
         $user = $this->userService->enableUser($user);
         return $this->successResponse(new UserResource($user), 'User enabled');
@@ -566,9 +564,9 @@ class UserController extends Controller
      *   )
      * )
      */
-    public function disable(int $id)
+    public function disable(int $id): JsonResponse
     {
-        $user = User::find($id);
+        $user = User::query()->find($id);
         if (!$user) return $this->notFoundResponse('User not found', 'User');
         $user = $this->userService->disableUser($user);
         return $this->successResponse(new UserResource($user), 'User disabled');
@@ -599,9 +597,9 @@ class UserController extends Controller
      *   )
      * )
      */
-    public function lock(Request $request, int $id)
+    public function lock(Request $request, int $id): JsonResponse
     {
-        $user = User::find($id);
+        $user = User::query()->find($id);
         if (!$user) return $this->notFoundResponse('User not found', 'User');
         $seconds = (int)$request->query('seconds', 3600);
         $user = $this->userService->lockUser($user, $seconds);
@@ -632,9 +630,9 @@ class UserController extends Controller
      *   )
      * )
      */
-    public function unlock(int $id)
+    public function unlock(int $id): JsonResponse
     {
-        $user = User::find($id);
+        $user = User::query()->find($id);
         if (!$user) return $this->notFoundResponse('User not found', 'User');
         $user = $this->userService->unlockUser($user);
         return $this->successResponse(new UserResource($user), 'User unlocked');
@@ -665,7 +663,7 @@ class UserController extends Controller
     public function syncRoles(Request $request, int $id): JsonResponse
     {
         try {
-            $user = User::find($id);
+            $user = User::query()->find($id);
 
             if (!$user) {
                 return $this->notFoundResponse('User not found');
@@ -684,6 +682,3 @@ class UserController extends Controller
         }
     }
 }
-
-
-

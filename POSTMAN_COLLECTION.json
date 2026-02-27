@@ -1,0 +1,301 @@
+{
+  "info": {
+    "name": "Polymorphic Media Upload API",
+    "description": "Complete test collection for Laravel Spatie Media Library + Cloudinary integration",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/login",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Test Case 1: Upload Avatar (User)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{TOKEN}}"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "path/to/avatar.jpg"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{BASE_URL}}/api/v1/media/user/{{USER_ID}}/avatar",
+          "host": ["{{BASE_URL}}"],
+          "path": ["api", "v1", "media", "user", "{{USER_ID}}", "avatar"]
+        },
+        "description": "Upload avatar cho User - Single file collection (auto-replace)"
+      },
+      "response": []
+    },
+    {
+      "name": "Test Case 2: Upload Gallery (Post)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{TOKEN}}"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "path/to/photo.jpg"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{BASE_URL}}/api/v1/media/post/{{POST_ID}}/gallery",
+          "host": ["{{BASE_URL}}"],
+          "path": ["api", "v1", "media", "post", "{{POST_ID}}", "gallery"]
+        },
+        "description": "Upload ảnh vào gallery của Post - Multiple files collection"
+      },
+      "response": []
+    },
+    {
+      "name": "Test Case 3: Upload Documents (Product)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{TOKEN}}"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "path/to/spec.pdf"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{BASE_URL}}/api/v1/media/product/{{PRODUCT_ID}}/documents",
+          "host": ["{{BASE_URL}}"],
+          "path": ["api", "v1", "media", "product", "{{PRODUCT_ID}}", "documents"]
+        },
+        "description": "Upload PDF document cho Product"
+      },
+      "response": []
+    },
+    {
+      "name": "Test Case 4: Delete Media",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{TOKEN}}"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{BASE_URL}}/api/v1/media/{{MEDIA_ID}}",
+          "host": ["{{BASE_URL}}"],
+          "path": ["api", "v1", "media", "{{MEDIA_ID}}"]
+        },
+        "description": "Xóa media - Lấy MEDIA_ID từ response của upload / list"
+      },
+      "response": []
+    },
+    {
+      "name": "Test Case 5: List Media (Post)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{TOKEN}}"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{BASE_URL}}/api/v1/media/post/{{POST_ID}}",
+          "host": ["{{BASE_URL}}"],
+          "path": ["api", "v1", "media", "post", "{{POST_ID}}"]
+        },
+        "description": "Lấy danh sách tất cả media của Post (tất cả collections)"
+      },
+      "response": []
+    },
+    {
+      "name": "Error Test: Invalid File Type",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{TOKEN}}"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "path/to/image.jpg"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{BASE_URL}}/api/v1/media/product/{{PRODUCT_ID}}/documents",
+          "host": ["{{BASE_URL}}"],
+          "path": ["api", "v1", "media", "product", "{{PRODUCT_ID}}", "documents"]
+        },
+        "description": "Should fail - Documents collection only accepts PDF, not JPG (422)"
+      },
+      "response": []
+    },
+    {
+      "name": "Error Test: Unauthorized",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{BASE_URL}}/api/v1/media/{{MEDIA_ID}}",
+          "host": ["{{BASE_URL}}"],
+          "path": ["api", "v1", "media", "{{MEDIA_ID}}"]
+        },
+        "description": "Should fail - No Authorization header (401)"
+      },
+      "response": []
+    },
+    {
+      "name": "Error Test: Forbidden - Different User",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{TOKEN}}"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "path/to/photo.jpg"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{BASE_URL}}/api/v1/media/post/999/gallery",
+          "host": ["{{BASE_URL}}"],
+          "path": ["api", "v1", "media", "post", "999", "gallery"]
+        },
+        "description": "Should fail - Post belongs to different user (403 if user is owner check enabled)"
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "BASE_URL",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "TOKEN",
+      "value": "your_sanctum_token_here",
+      "type": "string"
+    },
+    {
+      "key": "USER_ID",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "POST_ID",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "PRODUCT_ID",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "MEDIA_ID",
+      "value": "1",
+      "type": "string"
+    }
+  ]
+}

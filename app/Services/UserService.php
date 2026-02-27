@@ -200,17 +200,13 @@ class UserService
     public function getUserStatistics(): array
     {
         return [
-            'total_users'    => User::count(),
-            'active_users'   => User::where('enable', true)->count(),
-            'disabled_users' => User::where('enable', false)->count(),
-            'locked_users'   => User::whereNotNull('locked_at')->where('locked_at', '>', now())->count(),
-            'verified_users' => User::whereNotNull('email_verified_at')->count(),
+            'total_users'    => User::query()->count(),
+            'active_users'   => User::query()->where('enable', true)->count(),
+            'disabled_users' => User::query()->where('enable', false)->count(),
+            'locked_users'   => User::query()->whereNotNull('locked_at')->where('locked_at', '>', now())->count(),
+            'verified_users' => User::query()->whereNotNull('email_verified_at')->count(),
         ];
     }
-
-    /* ═══════════════════════════════════════════════════════
-     *  Private helpers
-     * ═══════════════════════════════════════════════════════ */
 
     private function makeUserCode(?string $incomingCode): string
     {

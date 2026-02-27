@@ -142,8 +142,6 @@ class PlantController extends Controller
             $plant = $this->plantService->createPlant($data);
 
             return $this->createdResponse(new PlantResource($plant), 'Plant created successfully');
-        } catch (ValidationException $e) {
-            return $this->validationErrorResponse($e->errors());
         } catch (Throwable $e) {
             return $this->serverErrorResponse($e->getMessage(), $e);
         }
@@ -185,8 +183,6 @@ class PlantController extends Controller
             $plant = $this->plantService->updatePlant($plant, $data);
 
             return $this->successResponse(new PlantResource($plant), 'Plant updated successfully');
-        } catch (ValidationException $e) {
-            return $this->validationErrorResponse($e->errors());
         } catch (Throwable $e) {
             return $this->serverErrorResponse($e->getMessage(), $e);
         }

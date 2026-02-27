@@ -169,7 +169,7 @@ class VisibilityRuleEngine
         $haystack = (string) $answerValue;
         $needle = (string) $value;
 
-        return \strpos($haystack, $needle) !== false;
+        return str_contains($haystack, $needle);
     }
 
     /**

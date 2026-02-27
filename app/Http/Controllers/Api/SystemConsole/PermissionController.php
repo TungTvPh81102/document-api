@@ -136,8 +136,6 @@ class PermissionController extends Controller
             $permission = $this->permissionService->createPermission($data);
 
             return $this->createdResponse(new PermissionResource($permission), 'Permission created successfully');
-        } catch (ValidationException $e) {
-            return $this->validationErrorResponse($e->errors());
         } catch (Throwable $e) {
             return $this->serverErrorResponse($e->getMessage(), $e);
         }
@@ -180,8 +178,6 @@ class PermissionController extends Controller
             $permission = $this->permissionService->updatePermission($permission, $data);
 
             return $this->successResponse(new PermissionResource($permission), 'Permission updated successfully');
-        } catch (ValidationException $e) {
-            return $this->validationErrorResponse($e->errors());
         } catch (Throwable $e) {
             return $this->serverErrorResponse($e->getMessage(), $e);
         }
