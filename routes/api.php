@@ -2,15 +2,14 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\HealthController;
-use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\SystemConsole\UserController;
 use App\Http\Controllers\Api\SystemConsole\RoleController;
 use App\Http\Controllers\Api\SystemConsole\PermissionController;
 use App\Http\Controllers\Api\SystemConsole\SiteController;
 use App\Http\Controllers\Api\SystemConsole\PlantController;
 use App\Http\Controllers\Api\SystemConsole\SubSiteController;
-use App\Http\Controllers\Api\ServiceController;
-use App\Http\Controllers\Api\ServiceRequestController;
-use Illuminate\Http\Request;
+use App\Http\Controllers\Api\SystemConsole\ServiceController;
+use App\Http\Controllers\Api\SystemConsole\ServiceRequestController;
 
 Route::get('/health', [HealthController::class, 'health'])->name('health');
 
@@ -26,7 +25,7 @@ Route::get('services/{svcCode}/form', [ServiceController::class, 'show']);
 Route::middleware('auth:sanctum')->group(function () {
     // User routes (fixed from previous broken state)
     Route::get('/user', [UserController::class, 'me'])->name('users.me');
-    
+
     Route::prefix('users')->name('users.')->group(function () {
         Route::get('/', [UserController::class, 'index'])->name('index');
         Route::get('/search', [UserController::class, 'search'])->name('search');
@@ -51,7 +50,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Admin Service Management
     Route::prefix('admin')->group(function () {
-        Route::post('services/ingest', [\App\Http\Controllers\Api\Admin\ServiceManagementController::class, 'ingest']);
+        Route::post('services/ingest', [\App\Http\Controllers\Api\SystemConsole\ServiceManagementController::class, 'ingest']);
     });
 });
 
@@ -94,4 +93,27 @@ Route::prefix('sub-sites')->name('sub-sites.')->group(function () {
     Route::post('/', [SubSiteController::class, 'store'])->name('store');
     Route::put('/{id}', [SubSiteController::class, 'update'])->name('update');
     Route::delete('/{id}', [SubSiteController::class, 'delete'])->name('delete');
+});
+// Media Routes (Polymorphic - supports User, Post, Product, etc)
+Route::middleware('auth:sanctum')->prefix('v1/media')->name('media.')->group(function () {
+    // Upload media file
+    // POST /api/v1/media/{modelType}/{modelId}/{collection}
+    Route::post(
+        '/{modelType}/{modelId}/{collection}',
+        [\App\Http\Controllers\Api\V1\MediaController::class, 'upload']
+    )->name('upload');
+
+    // List media of a model
+    // GET /api/v1/media/{modelType}/{modelId}
+    Route::get(
+        '/{modelType}/{modelId}',
+        [\App\Http\Controllers\Api\V1\MediaController::class, 'index']
+    )->name('index');
+
+    // Delete media
+    // DELETE /api/v1/media/{mediaId}
+    Route::delete(
+        '/{mediaId}',
+        [\App\Http\Controllers\Api\V1\MediaController::class, 'destroy']
+    )->name('destroy');
 });

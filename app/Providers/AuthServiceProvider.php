@@ -4,7 +4,9 @@ namespace App\Providers;
 
 use App\Models\User;
 use App\Policies\UserPolicy;
+use App\Policies\MediaPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class AuthServiceProvider extends ServiceProvider
 {
@@ -15,6 +17,7 @@ class AuthServiceProvider extends ServiceProvider
      */
     protected $policies = [
         User::class => UserPolicy::class,
+        Media::class => MediaPolicy::class,
     ];
 
     /**

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers\Api\SystemConsole;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ServiceCategoryResource;
@@ -44,7 +44,7 @@ class ServiceController extends Controller
         try {
             $categories = ServiceCategory::query()
                 ->where('is_active', true)
-                ->with(['services' => function($q) {
+                ->with(['services' => function ($q) {
                     $q->where('status', 'active');
                 }])
                 ->get();

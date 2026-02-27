@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers\Api\SystemConsole;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SystemConsoles\User\StoreUserRequest;
@@ -116,10 +116,10 @@ class UserController extends Controller
             $user = $this->userService->createUser($data);
 
             return $this->withLinks([
-                    'self'   => route('users.show', $user->code ?? $user->id),
-                    'update' => route('users.update', $user->id),
-                    'delete' => route('users.destroy', $user->id),
-                ])
+                'self'   => route('users.show', $user->code ?? $user->id),
+                'update' => route('users.update', $user->id),
+                'delete' => route('users.destroy', $user->id),
+            ])
                 ->createdResponse(
                     new UserResource($user),
                     'User created successfully',
@@ -682,6 +682,3 @@ class UserController extends Controller
         }
     }
 }
-
-
-
